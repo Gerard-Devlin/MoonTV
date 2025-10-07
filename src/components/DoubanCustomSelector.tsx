@@ -191,7 +191,7 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
         ref={containerRef}
         className={`relative ${
           isPrimary
-            ? 'inline-flex bg-gray-200/60 rounded-full p-0.5 sm:p-1 dark:bg-gray-700/60 backdrop-blur-sm'
+            ? 'inline-flex bg-gray-200 rounded-full p-0.5 sm:p-1 dark:bg-gray-700/60 backdrop-blur-sm'
             : 'flex flex-wrap gap-1 sm:gap-2'
         }`}
       >
@@ -229,11 +229,11 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
               className={`relative z-10 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
                 isPrimary
                   ? ''
-                  : 'border border-gray-400/60 dark:border-gray-600 bg-transparent'
+                  : 'border border-gray-300 dark:border-gray-600 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/50'
               } ${
                 isActive
-                  ? 'text-gray-900 dark:text-gray-100 cursor-default'
-                  : 'text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 cursor-pointer'
+                  ? 'text-gray-900 dark:text-gray-100 cursor-default ring-1 ring-gray-300 dark:ring-0'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 cursor-pointer'
               }`}
             >
               {option.label}
