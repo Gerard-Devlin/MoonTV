@@ -31,17 +31,18 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
   const [primaryIndicatorStyle, setPrimaryIndicatorStyle] = useState<{
     left: number;
     width: number;
-  }>({ left: 0, width: 0 });
+    top: number;
+    height: number;
+  }>({ left: 0, width: 0, top: 0, height: 0 });
 
   const secondaryContainerRef = useRef<HTMLDivElement>(null);
   const secondaryButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [secondaryIndicatorStyle, setSecondaryIndicatorStyle] = useState<{
     left: number;
     width: number;
-  }>({ left: 0, width: 0 });
-
-  // 二级选择器滚动容器的ref
-  const secondaryScrollContainerRef = useRef<HTMLDivElement>(null);
+    top: number;
+    height: number;
+  }>({ left: 0, width: 0, top: 0, height: 0 });
 
   // 根据 customCategories 生成一级选择器选项（按 type 分组，电影优先）
   const primaryOptions = React.useMemo(() => {
@@ -69,66 +70,18 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
       }));
   }, [customCategories, primarySelection]);
 
-  // 处理二级选择器的鼠标滚轮事件（原生 DOM 事件）
-  const handleSecondaryWheel = React.useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const container = secondaryScrollContainerRef.current;
-    if (container) {
-      const scrollAmount = e.deltaY * 2;
-      container.scrollLeft += scrollAmount;
-    }
-  }, []);
-
-  // 添加二级选择器的鼠标滚轮事件监听器
-  useEffect(() => {
-    const scrollContainer = secondaryScrollContainerRef.current;
-    const capsuleContainer = secondaryContainerRef.current;
-
-    if (scrollContainer && capsuleContainer) {
-      // 同时监听滚动容器和胶囊容器的滚轮事件
-      scrollContainer.addEventListener('wheel', handleSecondaryWheel, {
-        passive: false,
-      });
-      capsuleContainer.addEventListener('wheel', handleSecondaryWheel, {
-        passive: false,
-      });
-
-      return () => {
-        scrollContainer.removeEventListener('wheel', handleSecondaryWheel);
-        capsuleContainer.removeEventListener('wheel', handleSecondaryWheel);
-      };
-    }
-  }, [handleSecondaryWheel]);
-
-  // 当二级选项变化时重新添加事件监听器
-  useEffect(() => {
-    const scrollContainer = secondaryScrollContainerRef.current;
-    const capsuleContainer = secondaryContainerRef.current;
-
-    if (scrollContainer && capsuleContainer && secondaryOptions.length > 0) {
-      // 重新添加事件监听器
-      scrollContainer.addEventListener('wheel', handleSecondaryWheel, {
-        passive: false,
-      });
-      capsuleContainer.addEventListener('wheel', handleSecondaryWheel, {
-        passive: false,
-      });
-
-      return () => {
-        scrollContainer.removeEventListener('wheel', handleSecondaryWheel);
-        capsuleContainer.removeEventListener('wheel', handleSecondaryWheel);
-      };
-    }
-  }, [handleSecondaryWheel, secondaryOptions]);
-
   // 更新指示器位置的通用函数
   const updateIndicatorPosition = (
     activeIndex: number,
     containerRef: React.RefObject<HTMLDivElement>,
     buttonRefs: React.MutableRefObject<(HTMLButtonElement | null)[]>,
     setIndicatorStyle: React.Dispatch<
-      React.SetStateAction<{ left: number; width: number }>
+      React.SetStateAction<{
+        left: number;
+        width: number;
+        top: number;
+        height: number;
+      }>
     >
   ) => {
     if (
@@ -147,6 +100,8 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
             setIndicatorStyle({
               left: buttonRect.left - containerRect.left,
               width: buttonRect.width,
+              top: buttonRect.top - containerRect.top,
+              height: buttonRect.height,
             });
           }
         }
@@ -234,18 +189,33 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
     return (
       <div
         ref={containerRef}
-        className='relative inline-flex bg-gray-200/60 rounded-full p-0.5 sm:p-1 dark:bg-gray-700/60 backdrop-blur-sm'
+        className={`relative ${
+          isPrimary
+            ? 'inline-flex bg-gray-200/60 rounded-full p-0.5 sm:p-1 dark:bg-gray-700/60 backdrop-blur-sm'
+            : 'flex flex-wrap gap-1 sm:gap-2'
+        }`}
       >
         {/* 滑动的白色背景指示器 */}
-        {indicatorStyle.width > 0 && (
-          <div
-            className='absolute top-0.5 bottom-0.5 sm:top-1 sm:bottom-1 bg-white dark:bg-gray-500 rounded-full shadow-sm transition-all duration-300 ease-out'
-            style={{
-              left: `${indicatorStyle.left}px`,
-              width: `${indicatorStyle.width}px`,
-            }}
-          />
-        )}
+        {indicatorStyle.width > 0 &&
+          (isPrimary ? (
+            <div
+              className='absolute top-0.5 bottom-0.5 sm:top-1 sm:bottom-1 bg-white dark:bg-gray-500 rounded-full shadow-sm transition-all duration-300 ease-out'
+              style={{
+                left: `${indicatorStyle.left}px`,
+                width: `${indicatorStyle.width}px`,
+              }}
+            />
+          ) : (
+            <div
+              className='absolute bg-white dark:bg-gray-500 rounded-full shadow-sm transition-all duration-300 ease-out'
+              style={{
+                left: `${indicatorStyle.left}px`,
+                width: `${indicatorStyle.width}px`,
+                top: `${indicatorStyle.top}px`,
+                height: `${indicatorStyle.height}px`,
+              }}
+            />
+          ))}
 
         {options.map((option, index) => {
           const isActive = activeValue === option.value;
@@ -257,6 +227,10 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
               }}
               onClick={() => onChange(option.value)}
               className={`relative z-10 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
+                isPrimary
+                  ? ''
+                  : 'border border-gray-400/60 dark:border-gray-600 bg-transparent'
+              } ${
                 isActive
                   ? 'text-gray-900 dark:text-gray-100 cursor-default'
                   : 'text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 cursor-pointer'
@@ -296,18 +270,16 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
 
         {/* 二级选择器 */}
         {secondaryOptions.length > 0 && (
-          <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
+          <div className='flex flex-col sm:flex-row sm:items-baseline gap-2'>
             <span className='text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 min-w-[48px]'>
               片单
             </span>
-            <div ref={secondaryScrollContainerRef} className='overflow-x-auto'>
-              {renderCapsuleSelector(
-                secondaryOptions,
-                secondarySelection || secondaryOptions[0]?.value,
-                onSecondaryChange,
-                false
-              )}
-            </div>
+            {renderCapsuleSelector(
+              secondaryOptions,
+              secondarySelection || secondaryOptions[0]?.value,
+              onSecondaryChange,
+              false
+            )}
           </div>
         )}
       </div>

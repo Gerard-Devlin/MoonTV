@@ -487,14 +487,14 @@
       "query": "动作"
     },
     {
-      "name": "喜剧",
+      "name": "冒险",
       "type": "movie",
-      "query": "喜剧"
+      "query": "冒险"
     },
     {
-      "name": "爱情",
+      "name": "奇幻",
       "type": "movie",
-      "query": "爱情"
+      "query": "奇幻"
     },
     {
       "name": "科幻",
@@ -502,9 +502,44 @@
       "query": "科幻"
     },
     {
+      "name": "战争",
+      "type": "movie",
+      "query": "战争"
+    },
+    {
+      "name": "历史",
+      "type": "movie",
+      "query": "历史"
+    },
+    {
+      "name": "爱情",
+      "type": "movie",
+      "query": "爱情"
+    },
+    {
+      "name": "喜剧",
+      "type": "movie",
+      "query": "喜剧"
+    },
+    {
+      "name": "剧情",
+      "type": "movie",
+      "query": "剧情"
+    },
+    {
       "name": "悬疑",
       "type": "movie",
       "query": "悬疑"
+    },
+    {
+      "name": "犯罪",
+      "type": "movie",
+      "query": "犯罪"
+    },
+    {
+      "name": "惊悚",
+      "type": "movie",
+      "query": "惊悚"
     },
     {
       "name": "恐怖",
@@ -512,9 +547,84 @@
       "query": "恐怖"
     },
     {
+      "name": "动画",
+      "type": "movie",
+      "query": "动画"
+    },
+    {
+      "name": "音乐",
+      "type": "movie",
+      "query": "音乐"
+    },
+    {
+      "name": "歌舞",
+      "type": "movie",
+      "query": "歌舞"
+    },
+    {
+      "name": "传记",
+      "type": "movie",
+      "query": "传记"
+    },
+    {
+      "name": "家庭",
+      "type": "movie",
+      "query": "家庭"
+    },
+    {
+      "name": "儿童",
+      "type": "movie",
+      "query": "儿童"
+    },
+    {
       "name": "治愈",
       "type": "movie",
       "query": "治愈"
+    },
+    {
+      "name": "励志",
+      "type": "movie",
+      "query": "励志"
+    },
+    {
+      "name": "青春",
+      "type": "movie",
+      "query": "青春"
+    },
+    {
+      "name": "校园",
+      "type": "movie",
+      "query": "校园"
+    },
+    {
+      "name": "体育",
+      "type": "movie",
+      "query": "体育"
+    },
+    {
+      "name": "西部",
+      "type": "movie",
+      "query": "西部"
+    },
+    {
+      "name": "黑帮",
+      "type": "movie",
+      "query": "黑帮"
+    },
+    {
+      "name": "灾难",
+      "type": "movie",
+      "query": "灾难"
+    },
+    {
+      "name": "超英",
+      "type": "movie",
+      "query": "超级英雄"
+    },
+    {
+      "name": "文艺",
+      "type": "movie",
+      "query": "文艺"
     },
     {
       "name": "Netflix",
@@ -530,6 +640,11 @@
       "name": "A24",
       "type": "movie",
       "query": "A24"
+    },
+    {
+      "name": "HBO",
+      "type": "movie",
+      "query": "HBO"
     },
     {
       "name": "热门",
