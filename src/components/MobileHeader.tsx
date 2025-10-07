@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 
 import { BackButton } from './BackButton';
 import { ThemeToggle } from './ThemeToggle';
@@ -28,11 +29,8 @@ const MobileHeader = ({ showBackButton = false }: MobileHeaderProps) => {
 
       {/* 中间：Logo（绝对居中） */}
       <div className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'>
-        <Link
-          href='/'
-          className='block text-2xl select-none hover:opacity-90 transition-opacity'
-        >
-          🌔
+        <Link href='/' className='block hover:opacity-90 transition-opacity'>
+          <Image src='/logo.png' alt='logo' width={28} height={28} priority />
         </Link>
       </div>
     </header>
