@@ -46,7 +46,7 @@ const Logo = () => {
         alt='Logo'
         width={32}
         height={32}
-        className='h-16 w-16 rounded-md shadow-sm mt-4'
+        className='h-16 w-16 rounded-md  mt-4'
         priority
       />
     </Link>
