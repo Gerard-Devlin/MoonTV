@@ -647,6 +647,11 @@
       "query": "HBO"
     },
     {
+      "name": "BBC",
+      "type": "movie",
+      "query": "BBC"
+    },
+    {
       "name": "热门",
       "type": "tv",
       "query": "热门"
