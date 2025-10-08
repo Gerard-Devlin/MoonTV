@@ -482,6 +482,11 @@
   },
   "custom_category": [
     {
+      "name": "全部",
+      "type": "movie",
+      "query": "all"
+    },
+    {
       "name": "动作",
       "type": "movie",
       "query": "动作"
