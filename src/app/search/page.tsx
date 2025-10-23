@@ -15,6 +15,7 @@ import {
 import { SearchResult } from '@/lib/types';
 import { yellowWords } from '@/lib/yellow';
 
+import Loader from '@/components/Loader';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
 
@@ -267,7 +268,7 @@ function SearchPageClient() {
         <div className='max-w-[95%] mx-auto mt-12 overflow-visible'>
           {isLoading ? (
             <div className='flex justify-center items-center h-40'>
-              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500'></div>
+              <Loader />
             </div>
           ) : showResults ? (
             <section className='mb-12'>

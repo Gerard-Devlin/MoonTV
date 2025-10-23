@@ -8,6 +8,9 @@ const nextConfig = {
 
   reactStrictMode: false,
   swcMinify: true,
+  compiler: {
+    styledComponents: true,
+  },
 
   // Uncoment to add domain whitelist
   images: {
