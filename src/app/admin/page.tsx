@@ -295,7 +295,7 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
         <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
           用户统计
         </h4>
-        <div className='p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-green-200 dark:border-green-800'>
+        <div className='p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800'>
           <div className='text-2xl font-bold text-blue-800 dark:text-blue-300'>
             {config.UserConfig.Users.length}
           </div>

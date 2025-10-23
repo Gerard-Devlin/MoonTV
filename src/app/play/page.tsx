@@ -1250,7 +1250,7 @@ function PlayPageClient() {
         playsInline: true,
         autoPlayback: false,
         airplay: true,
-        theme: '#22c55e',
+        theme: '#557efc',
         lang: 'zh-cn',
         hotkey: false,
         fastForward: true,
@@ -1587,7 +1587,7 @@ function PlayPageClient() {
           <div className='text-center max-w-md mx-auto px-6'>
             {/* 动画影院图标 */}
             <div className='relative mb-8'>
-              <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
+              <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-blue-500 to-emerald-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
                 <div className='text-white text-4xl'>
                   {loadingStage === 'searching' && '🔍'}
                   {loadingStage === 'preferring' && '⚡'}
@@ -1595,7 +1595,7 @@ function PlayPageClient() {
                   {loadingStage === 'ready' && '✨'}
                 </div>
                 {/* 旋转光环 */}
-                <div className='absolute -inset-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl opacity-20 animate-spin'></div>
+                <div className='absolute -inset-2 bg-gradient-to-r from-blue-500 to-emerald-600 rounded-2xl opacity-20 animate-spin'></div>
               </div>
 
               {/* 浮动粒子效果 */}
@@ -1646,7 +1646,7 @@ function PlayPageClient() {
               {/* 进度条 */}
               <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden'>
                 <div
-                  className='h-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-full transition-all duration-1000 ease-out'
+                  className='h-full bg-gradient-to-r from-blue-500 to-emerald-600 rounded-full transition-all duration-1000 ease-out'
                   style={{
                     width:
                       loadingStage === 'searching' ||
@@ -1722,7 +1722,7 @@ function PlayPageClient() {
                     ? router.push(`/search?q=${encodeURIComponent(videoTitle)}`)
                     : router.back()
                 }
-                className='w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-medium hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl'
+                className='w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-emerald-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl'
               >
                 {videoTitle ? '🔍 返回搜索' : '← 返回上页'}
               </button>
@@ -1822,10 +1822,10 @@ function PlayPageClient() {
                     <div className='text-center max-w-md mx-auto px-6'>
                       {/* 动画影院图标 */}
                       <div className='relative mb-8'>
-                        <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
+                        <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-blue-500 to-emerald-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
                           <div className='text-white text-4xl'>🎬</div>
                           {/* 旋转光环 */}
-                          <div className='absolute -inset-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl opacity-20 animate-spin'></div>
+                          <div className='absolute -inset-2 bg-gradient-to-r from-blue-500 to-emerald-600 rounded-2xl opacity-20 animate-spin'></div>
                         </div>
 
                         {/* 浮动粒子效果 */}

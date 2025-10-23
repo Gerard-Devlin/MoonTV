@@ -295,7 +295,7 @@ export default function VideoCard({
             <PlayCircleIcon
               size={50}
               strokeWidth={0.8}
-              className='text-white fill-transparent transition-all duration-300 ease-out hover:fill-green-500 hover:scale-[1.1]'
+              className='text-white fill-transparent transition-all duration-300 ease-out hover:fill-blue-500 hover:scale-[1.1]'
             />
           </div>
         )}
@@ -379,7 +379,7 @@ export default function VideoCard({
         </div>
         {config.showSourceName && source_name && (
           <span className='block text-xs text-gray-500 dark:text-gray-400 mt-1'>
-            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-green-500/60 group-hover:text-blue-600 dark:group-hover:text-blue-400'>
+            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-blue-500/60 group-hover:text-blue-600 dark:group-hover:text-blue-400'>
               {source_name}
             </span>
           </span>

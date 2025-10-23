@@ -366,7 +366,7 @@ function HomeClient() {
         >
           <div className='w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900 transform transition-all duration-300 hover:shadow-2xl'>
             <div className='flex justify-between items-start mb-4'>
-              <h3 className='text-2xl font-bold tracking-tight text-gray-800 dark:text-white border-b border-green-500 pb-1'>
+              <h3 className='text-2xl font-bold tracking-tight text-gray-800 dark:text-white border-b border-blue-500 pb-1'>
                 提示
               </h3>
               <button
@@ -385,7 +385,7 @@ function HomeClient() {
             </div>
             <button
               onClick={() => handleCloseAnnouncement(announcement)}
-              className='w-full rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-4 py-3 text-white font-medium shadow-md hover:shadow-lg hover:from-green-700 hover:to-green-800 dark:from-green-600 dark:to-green-700 dark:hover:from-green-700 dark:hover:to-green-800 transition-all duration-300 transform hover:-translate-y-0.5'
+              className='w-full rounded-lg bg-gradient-to-r from-blue-600 to-green-700 px-4 py-3 text-white font-medium shadow-md hover:shadow-lg hover:from-blue-700 hover:to-green-800 dark:from-blue-600 dark:to-green-700 dark:hover:from-blue-700 dark:hover:to-green-800 transition-all duration-300 transform hover:-translate-y-0.5'
             >
               我知道了
             </button>

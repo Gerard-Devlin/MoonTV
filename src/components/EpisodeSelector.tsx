@@ -407,7 +407,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                   className={`h-10 flex items-center justify-center text-sm font-medium rounded-md transition-all duration-200 
                     ${
                       isActive
-                        ? 'bg-blue-500 text-white shadow-lg shadow-green-500/25 dark:bg-blue-600'
+                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 dark:bg-blue-600'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-105 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
                     }`.trim()}
                 >
@@ -424,7 +424,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
         <div className='flex flex-col h-full mt-4'>
           {sourceSearchLoading && (
             <div className='flex items-center justify-center py-8'>
-              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-green-500'></div>
+              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500'></div>
               <span className='ml-2 text-sm text-gray-600 dark:text-gray-300'>
                 搜索中...
               </span>
@@ -484,7 +484,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                         className={`flex items-start gap-3 px-2 py-3 rounded-lg transition-all select-none duration-200 relative
                       ${
                         isCurrentSource
-                          ? 'bg-blue-500/10 dark:bg-blue-500/20 border-green-500/30 border'
+                          ? 'bg-blue-500/10 dark:bg-blue-500/20 border-blue-500/30 border'
                           : 'hover:bg-gray-200/50 dark:hover:bg-white/10 hover:scale-[1.02] cursor-pointer'
                       }`.trim()}
                       >
