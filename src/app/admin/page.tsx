@@ -804,7 +804,7 @@ const VideoSourceConfig = ({
           <span
             className={`px-2 py-1 text-xs rounded-full ${
               !source.disabled
-                ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'
+                ? 'bg-green-100 dark:bg-blue-900/20 text-green-800 dark:text-green-300'
                 : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
             }`}
           >
@@ -817,7 +817,7 @@ const VideoSourceConfig = ({
             className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
               !source.disabled
                 ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60'
-                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60'
+                : 'bg-blue-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'
             } transition-colors`}
           >
             {!source.disabled ? '禁用' : '启用'}
