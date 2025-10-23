@@ -78,14 +78,13 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
         minHeight: 'calc(3.5rem + env(safe-area-inset-bottom))',
       }}
     >
-      <ul className='flex items-center overflow-x-auto scrollbar-hide'>
+      <ul className='flex items-center justify-around'>
         {navItems.map((item) => {
           const active = isActive(item.href);
           return (
             <li
               key={item.href}
-              className='flex-shrink-0'
-              style={{ width: '20vw', minWidth: '20vw' }}
+              className='flex-1 min-w-0'
             >
               <Link
                 href={item.href}
