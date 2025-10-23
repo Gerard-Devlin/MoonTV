@@ -1600,7 +1600,7 @@ function PlayPageClient() {
 
               {/* 浮动粒子效果 */}
               <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                <div className='absolute top-2 left-2 w-2 h-2 bg-green-400 rounded-full animate-bounce'></div>
+                <div className='absolute top-2 left-2 w-2 h-2 bg-blue-400 rounded-full animate-bounce'></div>
                 <div
                   className='absolute top-4 right-4 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce'
                   style={{ animationDelay: '0.5s' }}
@@ -1618,26 +1618,26 @@ function PlayPageClient() {
                 <div
                   className={`w-3 h-3 rounded-full transition-all duration-500 ${
                     loadingStage === 'searching' || loadingStage === 'fetching'
-                      ? 'bg-green-500 scale-125'
+                      ? 'bg-blue-500 scale-125'
                       : loadingStage === 'preferring' ||
                         loadingStage === 'ready'
-                      ? 'bg-green-500'
+                      ? 'bg-blue-500'
                       : 'bg-gray-300'
                   }`}
                 ></div>
                 <div
                   className={`w-3 h-3 rounded-full transition-all duration-500 ${
                     loadingStage === 'preferring'
-                      ? 'bg-green-500 scale-125'
+                      ? 'bg-blue-500 scale-125'
                       : loadingStage === 'ready'
-                      ? 'bg-green-500'
+                      ? 'bg-blue-500'
                       : 'bg-gray-300'
                   }`}
                 ></div>
                 <div
                   className={`w-3 h-3 rounded-full transition-all duration-500 ${
                     loadingStage === 'ready'
-                      ? 'bg-green-500 scale-125'
+                      ? 'bg-blue-500 scale-125'
                       : 'bg-gray-300'
                   }`}
                 ></div>
@@ -1791,7 +1791,7 @@ function PlayPageClient() {
                 className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all duration-200 ${
                   isEpisodeSelectorCollapsed
                     ? 'bg-orange-400 animate-pulse'
-                    : 'bg-green-400'
+                    : 'bg-blue-400'
                 }`}
               ></div>
             </button>
@@ -1830,7 +1830,7 @@ function PlayPageClient() {
 
                         {/* 浮动粒子效果 */}
                         <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                          <div className='absolute top-2 left-2 w-2 h-2 bg-green-400 rounded-full animate-bounce'></div>
+                          <div className='absolute top-2 left-2 w-2 h-2 bg-blue-400 rounded-full animate-bounce'></div>
                           <div
                             className='absolute top-4 right-4 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce'
                             style={{ animationDelay: '0.5s' }}
@@ -1903,7 +1903,7 @@ function PlayPageClient() {
               {/* 关键信息行 */}
               <div className='flex flex-wrap items-center gap-3 text-base mb-4 opacity-80 flex-shrink-0'>
                 {detail?.class && (
-                  <span className='text-green-600 font-semibold'>
+                  <span className='text-blue-600 font-semibold'>
                     {detail.class}
                   </span>
                 )}

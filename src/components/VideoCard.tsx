@@ -332,7 +332,7 @@ export default function VideoCard({
         )}
 
         {actualEpisodes && actualEpisodes > 1 && (
-          <div className='absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
+          <div className='absolute top-2 right-2 bg-blue-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
             {currentEpisode
               ? `${currentEpisode}/${actualEpisodes}`
               : actualEpisodes}
@@ -348,7 +348,7 @@ export default function VideoCard({
             onClick={(e) => e.stopPropagation()}
             className='absolute top-2 left-2 opacity-0 -translate-x-2 transition-all duration-300 ease-in-out delay-100 group-hover:opacity-100 group-hover:translate-x-0'
           >
-            <div className='bg-green-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:bg-green-600 hover:scale-[1.1] transition-all duration-300 ease-out'>
+            <div className='bg-blue-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:bg-blue-600 hover:scale-[1.1] transition-all duration-300 ease-out'>
               <Link size={16} />
             </div>
           </a>
@@ -359,7 +359,7 @@ export default function VideoCard({
       {config.showProgress && progress !== undefined && (
         <div className='mt-1 h-1 w-full bg-gray-200 rounded-full overflow-hidden'>
           <div
-            className='h-full bg-green-500 transition-all duration-500 ease-out'
+            className='h-full bg-blue-500 transition-all duration-500 ease-out'
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -368,7 +368,7 @@ export default function VideoCard({
       {/* 标题与来源 */}
       <div className='mt-2 text-center'>
         <div className='relative'>
-          <span className='block text-sm font-semibold truncate text-gray-900 dark:text-gray-100 transition-colors duration-300 ease-in-out group-hover:text-green-600 dark:group-hover:text-green-400 peer'>
+          <span className='block text-sm font-semibold truncate text-gray-900 dark:text-gray-100 transition-colors duration-300 ease-in-out group-hover:text-blue-600 dark:group-hover:text-blue-400 peer'>
             {actualTitle}
           </span>
           {/* 自定义 tooltip */}
@@ -379,7 +379,7 @@ export default function VideoCard({
         </div>
         {config.showSourceName && source_name && (
           <span className='block text-xs text-gray-500 dark:text-gray-400 mt-1'>
-            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-green-500/60 group-hover:text-green-600 dark:group-hover:text-green-400'>
+            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-green-500/60 group-hover:text-blue-600 dark:group-hover:text-blue-400'>
               {source_name}
             </span>
           </span>
