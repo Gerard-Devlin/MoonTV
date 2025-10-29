@@ -7,7 +7,6 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 
 import {
   addSearchHistory,
-  clearSearchHistory,
   deleteSearchHistory,
   getSearchHistory,
   subscribeToDataUpdates,
@@ -352,7 +351,7 @@ function SearchPageClient() {
             <section className='mb-12'>
               <h2 className='mb-4 text-xl font-bold text-gray-800 text-left dark:text-gray-200'>
                 搜索历史
-                {searchHistory.length > 0 && (
+                {/* {searchHistory.length > 0 && (
                   <button
                     onClick={() => {
                       clearSearchHistory(); // 事件监听会自动更新界面
@@ -361,7 +360,7 @@ function SearchPageClient() {
                   >
                     清空
                   </button>
-                )}
+                )} */}
               </h2>
               <div className='flex flex-wrap gap-2'>
                 {searchHistory.map((item) => (
