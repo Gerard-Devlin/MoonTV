@@ -93,7 +93,9 @@ function LoginPageClient() {
         }
       ).RUNTIME_CONFIG;
       const storageType = runtimeConfig?.STORAGE_TYPE;
-      setShouldAskUsername(storageType && storageType !== 'localstorage');
+      setShouldAskUsername(
+        storageType !== undefined && storageType !== 'localstorage'
+      );
       setEnableRegister(Boolean(runtimeConfig?.ENABLE_REGISTER));
     }
   }, []);
@@ -238,13 +240,13 @@ function LoginPageClient() {
               <Turnstile
                 key={turnstileKey}
                 sitekey={turnstileSiteKey}
+                theme='auto'
                 onVerify={(token) => {
                   setTurnstileToken(token);
                   setError(null);
                 }}
-                onExpire={resetTurnstile}
-                onError={resetTurnstile}
-                options={{ theme: 'auto' }}
+                onExpire={() => resetTurnstile()}
+                onError={() => resetTurnstile()}
               />
             </div>
           )}
