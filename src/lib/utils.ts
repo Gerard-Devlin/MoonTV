@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,no-console */
 
 import Hls from 'hls.js';
+import clsx, { type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: Array<ClassValue>): string {
+  return twMerge(clsx(...inputs));
+}
 
 /**
  * 获取图片代理 URL 设置

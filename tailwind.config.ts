@@ -69,6 +69,10 @@ const config: Config = {
           '0%': { transform: 'translateX(100%)', opacity: '0' },
           '100%': { transform: 'translateX(0)', opacity: '1' },
         },
+        aurora: {
+          '0%': { backgroundPosition: '50% 50%, 50% 50%' },
+          '100%': { backgroundPosition: '350% 50%, 350% 50%' },
+        },
       },
       animation: {
         flicker: 'flicker 3s linear infinite',
@@ -77,6 +81,8 @@ const config: Config = {
         'slide-up': 'slideUp 0.3s ease-in-out',
         'slide-down': 'slideDown 0.3s ease-in-out',
         'slide-in-from-right': 'slideInFromRight 0.3s ease-out',
+        aurora: 'aurora 60s linear infinite',
+        'aurora-reverse': 'aurora 60s linear infinite reverse',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
