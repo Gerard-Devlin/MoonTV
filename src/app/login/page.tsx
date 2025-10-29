@@ -1,17 +1,20 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 'use client';
 
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import Turnstile from 'react-turnstile';
 
 import { checkForUpdates, CURRENT_VERSION, UpdateStatus } from '@/lib/version';
 
 import { useSite } from '@/components/SiteProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-// 版本显示组件
+type RuntimeConfig = {
+  STORAGE_TYPE?: string;
+  ENABLE_REGISTER?: boolean;
+};
+
 function VersionDisplay() {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [isChecking, setIsChecking] = useState(true);
@@ -21,8 +24,8 @@ function VersionDisplay() {
       try {
         const status = await checkForUpdates();
         setUpdateStatus(status);
-      } catch (_) {
-        // do nothing
+      } catch (error) {
+        // ignore fetch errors
       } finally {
         setIsChecking(false);
       }
@@ -36,7 +39,7 @@ function VersionDisplay() {
       onClick={() =>
         window.open('https://github.com/senshinya/MoonTV', '_blank')
       }
-      className='absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 transition-colors cursor-pointer'
+      className='absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
     >
       <span className='font-mono'>v{CURRENT_VERSION}</span>
       {!isChecking && updateStatus !== UpdateStatus.FETCH_FAILED && (
@@ -51,14 +54,14 @@ function VersionDisplay() {
         >
           {updateStatus === UpdateStatus.HAS_UPDATE && (
             <>
-              <AlertCircle className='w-3.5 h-3.5' />
-              <span className='font-semibold text-xs'>有新版本</span>
+              <AlertCircle className='h-3.5 w-3.5' />
+              <span className='text-xs font-semibold'>有新版本</span>
             </>
           )}
           {updateStatus === UpdateStatus.NO_UPDATE && (
             <>
-              <CheckCircle className='w-3.5 h-3.5' />
-              <span className='font-semibold text-xs'>已是最新</span>
+              <CheckCircle className='h-3.5 w-3.5' />
+              <span className='text-xs font-semibold'>已是最新</span>
             </>
           )}
         </div>
@@ -76,34 +79,55 @@ function LoginPageClient() {
   const [loading, setLoading] = useState(false);
   const [shouldAskUsername, setShouldAskUsername] = useState(false);
   const [enableRegister, setEnableRegister] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
+  const isTurnstileEnabled = Boolean(turnstileSiteKey);
   const { siteName } = useSite();
 
-  // 在客户端挂载后设置配置
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storageType = (window as any).RUNTIME_CONFIG?.STORAGE_TYPE;
+      const runtimeConfig = (
+        window as typeof window & {
+          RUNTIME_CONFIG?: RuntimeConfig;
+        }
+      ).RUNTIME_CONFIG;
+      const storageType = runtimeConfig?.STORAGE_TYPE;
       setShouldAskUsername(storageType && storageType !== 'localstorage');
-      setEnableRegister(
-        Boolean((window as any).RUNTIME_CONFIG?.ENABLE_REGISTER)
-      );
+      setEnableRegister(Boolean(runtimeConfig?.ENABLE_REGISTER));
     }
   }, []);
+
+  const resetTurnstile = useCallback(() => {
+    if (!isTurnstileEnabled) return;
+    setTurnstileToken(null);
+    setTurnstileKey((prev) => prev + 1);
+  }, [isTurnstileEnabled]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
     if (!password || (shouldAskUsername && !username)) return;
+    if (isTurnstileEnabled && !turnstileToken) {
+      setError('请完成人机验证');
+      return;
+    }
 
     try {
       setLoading(true);
+      const payload: Record<string, unknown> = {
+        password,
+        ...(shouldAskUsername ? { username } : {}),
+      };
+      if (isTurnstileEnabled) {
+        payload.turnstileToken = turnstileToken;
+      }
+
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password,
-          ...(shouldAskUsername ? { username } : {}),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -111,28 +135,42 @@ function LoginPageClient() {
         router.replace(redirect);
       } else if (res.status === 401) {
         setError('密码错误');
+        resetTurnstile();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? '服务器错误');
+        setError((data as { error?: string }).error ?? '服务器错误');
+        resetTurnstile();
       }
     } catch (error) {
       setError('网络错误，请稍后重试');
+      resetTurnstile();
     } finally {
       setLoading(false);
     }
   };
 
-  // 处理注册逻辑
   const handleRegister = async () => {
     setError(null);
     if (!password || !username) return;
+    if (isTurnstileEnabled && !turnstileToken) {
+      setError('请完成人机验证');
+      return;
+    }
 
     try {
       setLoading(true);
+      const payload: Record<string, unknown> = {
+        username,
+        password,
+      };
+      if (isTurnstileEnabled) {
+        payload.turnstileToken = turnstileToken;
+      }
+
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -140,29 +178,28 @@ function LoginPageClient() {
         router.replace(redirect);
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? '服务器错误');
+        setError((data as { error?: string }).error ?? '服务器错误');
+        resetTurnstile();
       }
     } catch (error) {
       setError('网络错误，请稍后重试');
+      resetTurnstile();
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
-      <div className='absolute top-4 right-4'>
+    <div className='relative flex min-h-screen items-center justify-center overflow-hidden px-4'>
+      <div className='absolute right-4 top-4'>
         <ThemeToggle />
       </div>
-      <div className='relative z-10 w-full max-w-md rounded-3xl bg-gradient-to-b from-white/90 via-white/70 to-white/40 dark:from-zinc-900/90 dark:via-zinc-900/70 dark:to-zinc-900/40 backdrop-blur-xl shadow-2xl p-10 dark:border dark:border-zinc-800'>
+      <div className='relative z-10 w-full max-w-md rounded-3xl bg-gradient-to-b from-white/90 via-white/70 to-white/40 p-10 shadow-2xl backdrop-blur-xl dark:from-zinc-900/90 dark:via-zinc-900/70 dark:to-zinc-900/40 dark:border dark:border-zinc-800'>
         <img
           src='/logo.png'
           alt={siteName}
           className='mx-auto mb-8 h-16 w-auto drop-shadow-sm'
         />
-        {/* <h1 className='text-blue-600 tracking-tight text-center text-3xl font-extrabold mb-8 bg-clip-text drop-shadow-sm'>
-          {siteName}
-        </h1> */}
         <form onSubmit={handleSubmit} className='space-y-8'>
           {shouldAskUsername && (
             <div>
@@ -173,7 +210,7 @@ function LoginPageClient() {
                 id='username'
                 type='text'
                 autoComplete='username'
-                className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
+                className='block w-full rounded-lg border-0 bg-white/60 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-white/60 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-800/60 dark:text-gray-100 dark:placeholder:text-gray-400 dark:ring-white/20'
                 placeholder='输入用户名'
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -189,24 +226,44 @@ function LoginPageClient() {
               id='password'
               type='password'
               autoComplete='current-password'
-              className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
+              className='block w-full rounded-lg border-0 bg-white/60 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-white/60 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-800/60 dark:text-gray-100 dark:placeholder:text-gray-400 dark:ring-white/20'
               placeholder='输入访问密码'
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
+          {isTurnstileEnabled && (
+            <div className='flex justify-center'>
+              <Turnstile
+                key={turnstileKey}
+                sitekey={turnstileSiteKey}
+                onVerify={(token) => {
+                  setTurnstileToken(token);
+                  setError(null);
+                }}
+                onExpire={resetTurnstile}
+                onError={resetTurnstile}
+                options={{ theme: 'auto' }}
+              />
+            </div>
+          )}
+
           {error && (
             <p className='text-sm text-red-600 dark:text-red-400'>{error}</p>
           )}
 
-          {/* 登录 / 注册按钮 */}
           {shouldAskUsername && enableRegister ? (
             <div className='flex gap-4'>
               <button
                 type='button'
                 onClick={handleRegister}
-                disabled={!password || !username || loading}
+                disabled={
+                  !password ||
+                  !username ||
+                  loading ||
+                  (isTurnstileEnabled && !turnstileToken)
+                }
                 className='flex-1 inline-flex justify-center rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
               >
                 {loading ? '注册中...' : '注册'}
@@ -214,9 +271,12 @@ function LoginPageClient() {
               <button
                 type='submit'
                 disabled={
-                  !password || loading || (shouldAskUsername && !username)
+                  !password ||
+                  loading ||
+                  (shouldAskUsername && !username) ||
+                  (isTurnstileEnabled && !turnstileToken)
                 }
-                className='flex-1 inline-flex justify-center rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-blue-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
+                className='flex-1 inline-flex justify-center rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
               >
                 {loading ? '登录中...' : '登录'}
               </button>
@@ -225,9 +285,12 @@ function LoginPageClient() {
             <button
               type='submit'
               disabled={
-                !password || loading || (shouldAskUsername && !username)
+                !password ||
+                loading ||
+                (shouldAskUsername && !username) ||
+                (isTurnstileEnabled && !turnstileToken)
               }
-              className='inline-flex w-full justify-center rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-blue-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
+              className='inline-flex w-full justify-center rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
             >
               {loading ? '登录中...' : '登录'}
             </button>
@@ -235,7 +298,6 @@ function LoginPageClient() {
         </form>
       </div>
 
-      {/* 版本信息显示 */}
       <VersionDisplay />
     </div>
   );

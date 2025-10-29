@@ -222,6 +222,8 @@ networks:
 | NEXT_PUBLIC_IMAGE_PROXY           | 默认的浏览器端图片代理                       | url prefix                       | (空)                                                                                                                       |
 | NEXT_PUBLIC_DOUBAN_PROXY          | 默认的浏览器端豆瓣数据代理                   | url prefix                       | (空)                                                                                                                       |
 | NEXT_PUBLIC_DISABLE_YELLOW_FILTER | 关闭色情内容过滤                             | true/false                       | false                                                                                                                      |
+| NEXT_PUBLIC_TURNSTILE_SITE_KEY    | Cloudflare Turnstile 站点密钥                | Turnstile site key               | （空）                                                                                                                     |
+| TURNSTILE_SECRET_KEY              | Cloudflare Turnstile 服务端密钥              | Turnstile secret key             | （空）                                                                                                                     |
 
 ## 配置说明
 

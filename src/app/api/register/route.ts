@@ -6,7 +6,6 @@ import { db } from '@/lib/db';
 
 export const runtime = 'edge';
 
-// 读取存储类型环境变量，默认 localstorage
 const STORAGE_TYPE =
   (process.env.NEXT_PUBLIC_STORAGE_TYPE as
     | 'localstorage'
@@ -15,7 +14,6 @@ const STORAGE_TYPE =
     | 'upstash'
     | undefined) || 'localstorage';
 
-// 生成签名
 async function generateSignature(
   data: string,
   secret: string
@@ -24,7 +22,6 @@ async function generateSignature(
   const keyData = encoder.encode(secret);
   const messageData = encoder.encode(data);
 
-  // 导入密钥
   const key = await crypto.subtle.importKey(
     'raw',
     keyData,
@@ -33,16 +30,61 @@ async function generateSignature(
     ['sign']
   );
 
-  // 生成签名
   const signature = await crypto.subtle.sign('HMAC', key, messageData);
 
-  // 转换为十六进制字符串
   return Array.from(new Uint8Array(signature))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
-// 生成认证Cookie（带签名）
+async function verifyTurnstileToken(
+  req: NextRequest,
+  token: unknown
+): Promise<boolean> {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+
+  if (!secret) {
+    return true;
+  }
+
+  if (typeof token !== 'string' || token.length === 0) {
+    return false;
+  }
+
+  const remoteIp =
+    req.ip ??
+    req.headers.get('CF-Connecting-IP') ??
+    req.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ??
+    undefined;
+
+  const formData = new FormData();
+  formData.append('secret', secret);
+  formData.append('response', token);
+  if (remoteIp) {
+    formData.append('remoteip', remoteIp);
+  }
+
+  try {
+    const response = await fetch(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = (await response.json()) as { success?: boolean };
+    return Boolean(data.success);
+  } catch (error) {
+    console.error('Turnstile verification failed', error);
+    return false;
+  }
+}
+
 async function generateAuthCookie(username: string): Promise<string> {
   const authData: any = {
     role: 'user',
@@ -50,7 +92,6 @@ async function generateAuthCookie(username: string): Promise<string> {
     timestamp: Date.now(),
   };
 
-  // 使用process.env.PASSWORD作为签名密钥，而不是用户密码
   const signingKey = process.env.PASSWORD || '';
   const signature = await generateSignature(username, signingKey);
   authData.signature = signature;
@@ -60,7 +101,6 @@ async function generateAuthCookie(username: string): Promise<string> {
 
 export async function POST(req: NextRequest) {
   try {
-    // localstorage 模式下不支持注册
     if (STORAGE_TYPE === 'localstorage') {
       return NextResponse.json(
         { error: '当前模式不支持注册' },
@@ -69,12 +109,26 @@ export async function POST(req: NextRequest) {
     }
 
     const config = await getConfig();
-    // 校验是否开放注册
     if (!config.UserConfig.AllowRegister) {
       return NextResponse.json({ error: '当前未开放注册' }, { status: 400 });
     }
 
-    const { username, password } = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch (error) {
+      return NextResponse.json({ error: '请求体格式错误' }, { status: 400 });
+    }
+
+    const { username, password, turnstileToken } = body ?? {};
+
+    const turnstilePassed = await verifyTurnstileToken(req, turnstileToken);
+    if (!turnstilePassed) {
+      return NextResponse.json(
+        { error: 'Turnstile 验证失败，请刷新后重试' },
+        { status: 400 }
+      );
+    }
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json({ error: '用户名不能为空' }, { status: 400 });
@@ -83,13 +137,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
     }
 
-    // 检查是否和管理员重复
     if (username === process.env.USERNAME) {
       return NextResponse.json({ error: '用户已存在' }, { status: 400 });
     }
 
     try {
-      // 检查用户是否已存在
       const exist = await db.checkUserExist(username);
       if (exist) {
         return NextResponse.json({ error: '用户已存在' }, { status: 400 });
@@ -97,25 +149,22 @@ export async function POST(req: NextRequest) {
 
       await db.registerUser(username, password);
 
-      // 添加到配置中并保存
       config.UserConfig.Users.push({
         username,
         role: 'user',
       });
       await db.saveAdminConfig(config);
 
-      // 注册成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
       const cookieValue = await generateAuthCookie(username);
       const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // 7天过期
-
+      expires.setDate(expires.getDate() + 7);
       response.cookies.set('auth', cookieValue, {
         path: '/',
         expires,
-        sameSite: 'lax', // 改为 lax 以支持 PWA
-        httpOnly: false, // PWA 需要客户端可访问
-        secure: false, // 根据协议自动设置
+        sameSite: 'lax',
+        httpOnly: false,
+        secure: false,
       });
 
       return response;
