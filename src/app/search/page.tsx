@@ -17,6 +17,7 @@ import { yellowWords } from '@/lib/yellow';
 import Loader from '@/components/Loader';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
+import { AuroraBackground } from '@/components/ui/shadcn-io/aurora-background';
 
 function SearchPageClient() {
   // 搜索历史
@@ -234,9 +235,9 @@ function SearchPageClient() {
     setSearchResults([]);
     setShowResults(false);
     router.replace('/search');
-    const input = document.getElementById('searchInput') as
-      | HTMLInputElement
-      | null;
+    const input = document.getElementById(
+      'searchInput'
+    ) as HTMLInputElement | null;
     input?.focus();
   };
 
@@ -255,8 +256,10 @@ function SearchPageClient() {
   };
 
   return (
-    <PageLayout activePath='/search'>
-      <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
+    <AuroraBackground className='h-auto min-h-screen items-stretch justify-start'>
+      <div className='relative z-10 w-full'>
+        <PageLayout activePath='/search'>
+          <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
         {/* 搜索框 */}
         <div className='mb-8'>
           <form onSubmit={handleSearch} className='max-w-2xl mx-auto'>
@@ -429,7 +432,9 @@ function SearchPageClient() {
       >
         <ChevronUp className='w-6 h-6 transition-transform group-hover:scale-110' />
       </button>
-    </PageLayout>
+        </PageLayout>
+      </div>
+    </AuroraBackground>
   );
 }
 
