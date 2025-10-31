@@ -7,6 +7,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 
 import {
   addSearchHistory,
+  clearSearchHistory,
   deleteSearchHistory,
   getSearchHistory,
   subscribeToDataUpdates,
@@ -14,10 +15,8 @@ import {
 import { SearchResult } from '@/lib/types';
 import { yellowWords } from '@/lib/yellow';
 
-import Loader from '@/components/Loader';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
-import { AuroraBackground } from '@/components/ui/shadcn-io/aurora-background';
 
 function SearchPageClient() {
   // 搜索历史
@@ -230,17 +229,6 @@ function SearchPageClient() {
     addSearchHistory(trimmed);
   };
 
-  const clearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setShowResults(false);
-    router.replace('/search');
-    const input = document.getElementById(
-      'searchInput'
-    ) as HTMLInputElement | null;
-    input?.focus();
-  };
-
   // 返回顶部功能
   const scrollToTop = () => {
     try {
@@ -256,10 +244,8 @@ function SearchPageClient() {
   };
 
   return (
-    <AuroraBackground className='h-auto min-h-screen items-stretch justify-start'>
-      <div className='relative z-10 w-full'>
-        <PageLayout activePath='/search'>
-          <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
+    <PageLayout activePath='/search'>
+      <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
         {/* 搜索框 */}
         <div className='mb-8'>
           <form onSubmit={handleSearch} className='max-w-2xl mx-auto'>
@@ -271,18 +257,8 @@ function SearchPageClient() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder='搜索电影、电视剧...'
-                className='w-full h-12 rounded-lg bg-gray-50/80 py-3 pl-10 pr-12 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white border border-gray-200/50 shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:bg-gray-700 dark:border-gray-700'
+                className='w-full h-12 rounded-lg bg-gray-50/80 py-3 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white border border-gray-200/50 shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:bg-gray-700 dark:border-gray-700'
               />
-              {searchQuery && (
-                <button
-                  type='button'
-                  onClick={clearSearch}
-                  aria-label='清空搜索'
-                  className='absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:text-gray-500 dark:hover:text-gray-300'
-                >
-                  <X className='h-4 w-4' />
-                </button>
-              )}
             </div>
           </form>
         </div>
@@ -291,7 +267,7 @@ function SearchPageClient() {
         <div className='max-w-[95%] mx-auto mt-12 overflow-visible'>
           {isLoading ? (
             <div className='flex justify-center items-center h-40'>
-              <Loader />
+              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500'></div>
             </div>
           ) : showResults ? (
             <section className='mb-12'>
@@ -375,7 +351,7 @@ function SearchPageClient() {
             <section className='mb-12'>
               <h2 className='mb-4 text-xl font-bold text-gray-800 text-left dark:text-gray-200'>
                 搜索历史
-                {/* {searchHistory.length > 0 && (
+                {searchHistory.length > 0 && (
                   <button
                     onClick={() => {
                       clearSearchHistory(); // 事件监听会自动更新界面
@@ -384,7 +360,7 @@ function SearchPageClient() {
                   >
                     清空
                   </button>
-                )} */}
+                )}
               </h2>
               <div className='flex flex-wrap gap-2'>
                 {searchHistory.map((item) => (
@@ -432,9 +408,7 @@ function SearchPageClient() {
       >
         <ChevronUp className='w-6 h-6 transition-transform group-hover:scale-110' />
       </button>
-        </PageLayout>
-      </div>
-    </AuroraBackground>
+    </PageLayout>
   );
 }
 
