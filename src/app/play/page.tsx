@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, no-console, @next/next/no-img-element */
+﻿/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, no-console, @next/next/no-img-element */
 
 'use client';
 
@@ -1585,78 +1585,43 @@ function PlayPageClient() {
       <PageLayout activePath='/play'>
         <div className='flex items-center justify-center min-h-screen bg-transparent'>
           <div className='text-center max-w-md mx-auto px-6'>
-            {/* 动画影院图标 */}
-            <div className='relative mb-8'>
-              <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
-                <div className='text-white text-4xl'>
-                  {loadingStage === 'searching' && '🔍'}
-                  {loadingStage === 'preferring' && '⚡'}
-                  {loadingStage === 'fetching' && '🎬'}
-                  {loadingStage === 'ready' && '✨'}
-                </div>
-                {/* 旋转光环 */}
-                <div className='absolute -inset-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-20 animate-spin'></div>
-              </div>
-
-              {/* 浮动粒子效果 */}
-              <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                <div className='absolute top-2 left-2 w-2 h-2 bg-blue-400 rounded-full animate-bounce'></div>
-                <div
-                  className='absolute top-4 right-4 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '0.5s' }}
-                ></div>
-                <div
-                  className='absolute bottom-3 left-6 w-1 h-1 bg-lime-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '1s' }}
-                ></div>
-              </div>
-            </div>
-
-            {/* 进度指示器 */}
-            <div className='mb-6 w-80 mx-auto'>
-              <div className='flex justify-center space-x-2 mb-4'>
-                <div
-                  className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                    loadingStage === 'searching' || loadingStage === 'fetching'
-                      ? 'bg-blue-500 scale-125'
-                      : loadingStage === 'preferring' ||
-                        loadingStage === 'ready'
-                      ? 'bg-blue-500'
-                      : 'bg-gray-300'
-                  }`}
-                ></div>
-                <div
-                  className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                    loadingStage === 'preferring'
-                      ? 'bg-blue-500 scale-125'
-                      : loadingStage === 'ready'
-                      ? 'bg-blue-500'
-                      : 'bg-gray-300'
-                  }`}
-                ></div>
-                <div
-                  className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                    loadingStage === 'ready'
-                      ? 'bg-blue-500 scale-125'
-                      : 'bg-gray-300'
-                  }`}
-                ></div>
-              </div>
-
-              {/* 进度条 */}
-              <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden'>
-                <div
-                  className='h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-out'
-                  style={{
-                    width:
-                      loadingStage === 'searching' ||
-                      loadingStage === 'fetching'
-                        ? '33%'
-                        : loadingStage === 'preferring'
-                        ? '66%'
-                        : '100%',
-                  }}
-                ></div>
+            <div className='flex justify-center mb-8'>
+              <div className='play-loader' aria-hidden='true'>
+                <svg width='100' height='100' viewBox='0 0 100 100'>
+                  <defs>
+                    <mask id='play-loader-clipping'>
+                      <polygon
+                        points='0,0 100,0 100,100 0,100'
+                        fill='black'
+                      ></polygon>
+                      <polygon
+                        points='25,25 75,25 50,75'
+                        fill='white'
+                      ></polygon>
+                      <polygon
+                        points='50,25 75,75 25,75'
+                        fill='white'
+                      ></polygon>
+                      <polygon
+                        points='35,35 65,35 50,65'
+                        fill='white'
+                      ></polygon>
+                      <polygon
+                        points='35,35 65,35 50,65'
+                        fill='white'
+                      ></polygon>
+                      <polygon
+                        points='35,35 65,35 50,65'
+                        fill='white'
+                      ></polygon>
+                      <polygon
+                        points='35,35 65,35 50,65'
+                        fill='white'
+                      ></polygon>
+                    </mask>
+                  </defs>
+                </svg>
+                <div className='play-loader__box'></div>
               </div>
             </div>
 
@@ -1820,27 +1785,9 @@ function PlayPageClient() {
                 {isVideoLoading && (
                   <div className='absolute inset-0 bg-black/85 backdrop-blur-sm rounded-xl flex items-center justify-center z-[500] transition-all duration-300'>
                     <div className='text-center max-w-md mx-auto px-6'>
-                      {/* 动画影院图标 */}
-                      <div className='relative mb-8'>
-                        <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
-                          <div className='text-white text-4xl'>🎬</div>
-                          {/* 旋转光环 */}
-                          <div className='absolute -inset-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-20 animate-spin'></div>
-                        </div>
-
-                        {/* 浮动粒子效果 */}
-                        <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                          <div className='absolute top-2 left-2 w-2 h-2 bg-blue-400 rounded-full animate-bounce'></div>
-                          <div
-                            className='absolute top-4 right-4 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce'
-                            style={{ animationDelay: '0.5s' }}
-                          ></div>
-                          <div
-                            className='absolute bottom-3 left-6 w-1 h-1 bg-lime-400 rounded-full animate-bounce'
-                            style={{ animationDelay: '1s' }}
-                          ></div>
-                        </div>
-                      </div>
+                      <aside className='play-pixel-loader' aria-hidden='true'>
+                        <div className='play-pixel-loader__pixel'></div>
+                      </aside>
 
                       {/* 换源消息 */}
                       <div className='space-y-2'>
