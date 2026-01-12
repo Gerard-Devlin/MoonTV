@@ -4,10 +4,10 @@
 
 import {
   Clapperboard,
-  Clover,
-  Crown,
+  HeartPulse,
   Home,
   Menu,
+  PartyPopper,
   Search,
   Tv,
 } from 'lucide-react';
@@ -146,7 +146,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
       href: '/douban?type=tv',
     },
     {
-      icon: Clover,
+      icon: HeartPulse,
       label: '综艺',
       href: '/douban?type=show',
     },
@@ -158,7 +158,7 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
       setMenuItems((prevItems) => [
         ...prevItems,
         {
-          icon: Crown,
+          icon: PartyPopper,
           label: '自定义',
           href: '/douban?type=custom',
         },

@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Clover, Film, Home, Search, Star, Tv } from 'lucide-react';
+import { Film, HeartPulse, Home, PartyPopper, Search, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -34,7 +34,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       href: '/douban?type=tv',
     },
     {
-      icon: Clover,
+      icon: HeartPulse,
       label: '综艺',
       href: '/douban?type=show',
     },
@@ -46,7 +46,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       setNavItems((prevItems) => [
         ...prevItems,
         {
-          icon: Star,
+          icon: PartyPopper,
           label: '自定义',
           href: '/douban?type=custom',
         },
@@ -82,10 +82,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
         {navItems.map((item) => {
           const active = isActive(item.href);
           return (
-            <li
-              key={item.href}
-              className='flex-1 min-w-0'
-            >
+            <li key={item.href} className='flex-1 min-w-0'>
               <Link
                 href={item.href}
                 className='flex flex-col items-center justify-center w-full h-14 gap-1 text-xs'
