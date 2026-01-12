@@ -321,7 +321,7 @@ async function handleSpecialSourceDetail(
   const descText = descMatch ? cleanHtmlTags(descMatch[1]) : '';
 
   // 提取封面
-  const coverMatch = html.match(/(https?:\/\/[^"'\s]+?\.jpg)/g);
+  const coverMatch = html.match(/(https?:\/\/[^"'\s]+?\.webp)/g);
   const coverUrl = coverMatch ? coverMatch[0].trim() : '';
 
   // 提取年份

@@ -7,15 +7,39 @@ const Loader: React.FC = () => {
   return (
     <StyledWrapper>
       <div className='loader'>
-        <div className='cell d-0' />
-        <div className='cell d-1' />
-        <div className='cell d-2' />
-        <div className='cell d-1' />
-        <div className='cell d-2' />
-        <div className='cell d-2' />
-        <div className='cell d-3' />
-        <div className='cell d-3' />
-        <div className='cell d-4' />
+        <div className='container'>
+          <div className='carousel'>
+            <div className='love'></div>
+            <div className='love'></div>
+            <div className='love'></div>
+            <div className='love'></div>
+            <div className='love'></div>
+            <div className='love'></div>
+            <div className='love'></div>
+          </div>
+        </div>
+        <div className='container'>
+          <div className='carousel'>
+            <div className='death'></div>
+            <div className='death'></div>
+            <div className='death'></div>
+            <div className='death'></div>
+            <div className='death'></div>
+            <div className='death'></div>
+            <div className='death'></div>
+          </div>
+        </div>
+        <div className='container'>
+          <div className='carousel'>
+            <div className='robots'></div>
+            <div className='robots'></div>
+            <div className='robots'></div>
+            <div className='robots'></div>
+            <div className='robots'></div>
+            <div className='robots'></div>
+            <div className='robots'></div>
+          </div>
+        </div>
       </div>
     </StyledWrapper>
   );
@@ -23,94 +47,208 @@ const Loader: React.FC = () => {
 
 const StyledWrapper = styled.div`
   .loader {
-    --cell-size: 25px;
-    --cell-spacing: 1px;
-    --cells: 3;
-    --total-size: calc(
-      var(--cells) * (var(--cell-size) + 2 * var(--cell-spacing))
-    );
     display: flex;
-    flex-wrap: wrap;
-    width: var(--total-size);
-    height: var(--total-size);
+    position: relative;
+    justify-items: center;
+    align-items: center;
+    gap: 1rem;
+    height: 55px;
+    width: 200px;
+    overflow: hidden;
   }
 
-  .cell {
-    flex: 0 0 var(--cell-size);
-    margin: var(--cell-spacing);
-    background-color: transparent;
-    box-sizing: border-box;
-    border-radius: 4px;
-    animation: 1.5s ripple ease infinite;
+  .container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    height: 200px;
+    position: relative;
+    align-items: center;
   }
 
-  .cell.d-1 {
-    animation-delay: 100ms;
+  .carousel {
+    display: flex;
+    gap: 1rem;
+    flex-direction: column;
+    position: absolute;
+    width: 100%;
+    transform-origin: center;
+    animation-delay: 2s;
   }
 
-  .cell.d-2 {
-    animation-delay: 200ms;
+  .loader .container:nth-child(3) {
+    justify-content: flex-start;
+    justify-items: flex-start;
+    animation: scroll-up 4s infinite ease-in-out;
+    animation-delay: 3s;
   }
 
-  .cell.d-3 {
-    animation-delay: 300ms;
+  .loader .container:nth-child(2) {
+    justify-content: flex-end;
+    justify-items: flex-end;
+    animation: scroll-down 4s infinite ease-in-out;
+    animation-delay: 3s;
   }
 
-  .cell.d-4 {
-    animation-delay: 400ms;
+  .loader .container:nth-child(1) {
+    justify-content: flex-end;
+    justify-items: flex-end;
+    animation: scroll-down 3s infinite ease-in-out;
+    animation-delay: 3s;
   }
 
-  .cell:nth-child(1) {
-    --cell-color: #00ff87;
+  .love {
+    background: red;
+    display: flex;
+    width: 30px;
+    height: 30px;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    left: 8px;
+    margin: 0.8rem 4px;
+    transform: rotate(45deg);
+    animation-delay: 2s;
   }
 
-  .cell:nth-child(2) {
-    --cell-color: #0cfd95;
+  .love::before,
+  .love::after {
+    content: '';
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: red;
   }
 
-  .cell:nth-child(3) {
-    --cell-color: #17fba2;
+  .love::before {
+    left: -16px;
   }
 
-  .cell:nth-child(4) {
-    --cell-color: #23f9b2;
+  .love::after {
+    top: -16px;
   }
 
-  .cell:nth-child(5) {
-    --cell-color: #30f7c3;
+  .death {
+    display: flex;
+    width: 100%;
+    height: 55px;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    animation: rotation 3s infinite ease-in-out;
+    animation-delay: 1s;
   }
 
-  .cell:nth-child(6) {
-    --cell-color: #3df5d4;
+  .death:after {
+    content: '';
+    height: 63px;
+    position: absolute;
+    border-left: 12px solid red;
+    transform: rotate(45deg);
+    border-radius: 8px;
+    top: -4px;
   }
 
-  .cell:nth-child(7) {
-    --cell-color: #45f4de;
+  .death:before {
+    content: '';
+    height: 60px;
+    position: absolute;
+    border-left: 12px solid red;
+    transform: rotate(-45deg);
   }
 
-  .cell:nth-child(8) {
-    --cell-color: #53f1f0;
+  .loader:hover {
+    animation: none;
   }
 
-  .cell:nth-child(9) {
-    --cell-color: #60efff;
+  .robots {
+    display: flex;
+    width: 100%;
+    height: 55px;
+    justify-content: space-between;
+    background-color: #ff0000;
+    border-radius: 0 8px 8px;
+    padding: 8px;
+    animation-delay: 5s;
   }
 
-  @keyframes ripple {
+  .robots::after {
+    content: '';
+    width: 12px;
+    height: 12px;
+    top: 0;
+    left: 0;
+    background-color: #ffffff;
+    border-radius: 50%;
+    animation-delay: 2s;
+    animation: blink 0.5s 2 forwards;
+  }
+
+  .robots::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    top: 0;
+    left: 0;
+    background-color: #ffffff;
+    border-radius: 50%;
+    animation-delay: 2s;
+    animation: blink 0.5s 2 forwards;
+  }
+
+  @keyframes scroll-up {
     0% {
-      background-color: transparent;
+      transform: translateY(0);
+      filter: blur(0);
     }
 
     30% {
-      background-color: var(--cell-color);
+      transform: translateY(-150%);
+      filter: blur(10px);
     }
 
     60% {
-      background-color: transparent;
+      transform: translateY(0);
+      filter: blur(0px);
+    }
+  }
+
+  @keyframes scroll-down {
+    0% {
+      transform: translateY(0);
+      filter: blur(0);
+    }
+
+    30% {
+      transform: translateY(150%);
+      filter: blur(10px);
+    }
+
+    60% {
+      transform: translateY(0);
+      filter: blur(0px);
+    }
+  }
+
+  @keyframes rotation {
+    20%,
+    100% {
+      transform: rotate(180deg);
+    }
+  }
+
+  @keyframes blink {
+    0% {
+      height: 0;
+    }
+
+    20% {
+      height: 12px;
     }
 
     100% {
-      background-color: transparent;
+      height: 12px;
     }
   }
 `;
