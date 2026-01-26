@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { CheckCircle, Heart, Link, PlayCircleIcon } from 'lucide-react';
+import { CheckCircle, Heart, Link, PlayCircleIcon, Star } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -289,7 +289,6 @@ export default function VideoCard({
         {/* 悬浮遮罩 */}
         <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100' />
 
-        {/* 播放按钮 */}
         {config.showPlayButton && (
           <div className='absolute inset-0 flex items-center justify-center opacity-0 transition-all duration-300 ease-in-out delay-75 group-hover:opacity-100 group-hover:scale-100'>
             <PlayCircleIcon
@@ -300,7 +299,6 @@ export default function VideoCard({
           </div>
         )}
 
-        {/* 操作按钮 */}
         {(config.showHeart || config.showCheckCircle) && (
           <div className='absolute bottom-3 right-3 flex gap-3 opacity-0 translate-y-2 transition-all duration-300 ease-in-out group-hover:opacity-100 group-hover:translate-y-0'>
             {config.showCheckCircle && (
@@ -326,13 +324,27 @@ export default function VideoCard({
 
         {/* 徽章 */}
         {config.showRating && rate && (
-          <div className='absolute top-2 right-2 bg-amber-600 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
-            {rate}
-          </div>
+          actualDoubanId ? (
+            <a
+              href={`https://movie.douban.com/subject/${actualDoubanId}`}
+              target='_blank'
+              rel='noopener noreferrer'
+              onClick={(e) => e.stopPropagation()}
+              className='absolute top-2 left-2 bg-black/70 text-yellow-300 text-xs font-bold h-7 px-2.5 rounded-full flex items-center gap-1 shadow-md transition-transform duration-200 ease-out hover:scale-105'
+            >
+              <Star size={14} stroke='currentColor' fill='currentColor' />
+              <span>{rate}</span>
+            </a>
+          ) : (
+            <div className='absolute top-2 left-2 bg-black/70 text-yellow-300 text-xs font-bold h-7 px-2.5 rounded-full flex items-center gap-1 shadow-md'>
+              <Star size={14} stroke='currentColor' fill='currentColor' />
+              <span>{rate}</span>
+            </div>
+          )
         )}
 
         {actualEpisodes && actualEpisodes > 1 && (
-          <div className='absolute top-2 right-2 bg-blue-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
+          <div className='absolute top-2 right-2 bg-blue-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md opacity-0 -translate-y-1 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-110'>
             {currentEpisode
               ? `${currentEpisode}/${actualEpisodes}`
               : actualEpisodes}
@@ -340,7 +352,7 @@ export default function VideoCard({
         )}
 
         {/* 豆瓣链接 */}
-        {config.showDoubanLink && actualDoubanId && (
+        {!config.showRating && config.showDoubanLink && actualDoubanId && (
           <a
             href={`https://movie.douban.com/subject/${actualDoubanId}`}
             target='_blank'
@@ -355,7 +367,6 @@ export default function VideoCard({
         )}
       </div>
 
-      {/* 进度条 */}
       {config.showProgress && progress !== undefined && (
         <div className='mt-1 h-1 w-full bg-gray-200 rounded-full overflow-hidden'>
           <div

@@ -189,7 +189,7 @@ function HomeClient() {
                   </button>
                 )}
               </div>
-              <div className='justify-start grid grid-cols-3 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
+              <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
                 {favoriteItems.map((item) => (
                   <div key={item.id + item.source} className='w-full'>
                     <VideoCard
@@ -233,7 +233,7 @@ function HomeClient() {
                       Array.from({ length: 8 }).map((_, index) => (
                         <div
                           key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
                         >
                           <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
                             <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
@@ -245,7 +245,7 @@ function HomeClient() {
                       hotMovies.map((movie, index) => (
                         <div
                           key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
                         >
                           <VideoCard
                             from='douban'
@@ -281,7 +281,7 @@ function HomeClient() {
                       Array.from({ length: 8 }).map((_, index) => (
                         <div
                           key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
                         >
                           <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
                             <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
@@ -293,7 +293,7 @@ function HomeClient() {
                       hotTvShows.map((show, index) => (
                         <div
                           key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
                         >
                           <VideoCard
                             from='douban'
@@ -328,7 +328,7 @@ function HomeClient() {
                       Array.from({ length: 8 }).map((_, index) => (
                         <div
                           key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
                         >
                           <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
                             <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
@@ -340,7 +340,7 @@ function HomeClient() {
                       hotVarietyShows.map((show, index) => (
                         <div
                           key={index}
-                          className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
+                          className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
                         >
                           <VideoCard
                             from='douban'

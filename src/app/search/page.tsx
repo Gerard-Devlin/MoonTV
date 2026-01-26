@@ -321,7 +321,7 @@ function SearchPageClient() {
                   </div>
                   <div
                     key={`search-results-${viewMode}`}
-                    className='justify-start grid grid-cols-3 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
+                    className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
                   >
                     {viewMode === 'agg'
                       ? aggregatedResults.map(([mapKey, group]) => {
