@@ -9,35 +9,28 @@ import { useEffect, useState } from 'react';
 
 interface MobileBottomNavProps {
   /**
-   * 主动指定当前激活的路径。当未提供时，自动使用 usePathname() 获取的路径。
+   * Active path override. When omitted, it falls back to usePathname().
    */
   activePath?: string;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
+const MobileBottomNav = ({
+  activePath,
+  isOpen,
+  onClose,
+}: MobileBottomNavProps) => {
   const pathname = usePathname();
 
-  // 当前激活路径：优先使用传入的 activePath，否则回退到浏览器地址
   const currentActive = activePath ?? pathname;
 
   const [navItems, setNavItems] = useState([
-    { icon: Home, label: '首页', href: '/' },
-    { icon: Search, label: '搜索', href: '/search' },
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-    },
-    {
-      icon: HeartPulse,
-      label: '综艺',
-      href: '/douban?type=show',
-    },
+    { icon: Home, label: '\u9996\u9875', href: '/' },
+    { icon: Search, label: '\u641c\u7d22', href: '/search' },
+    { icon: Film, label: '\u7535\u5f71', href: '/douban?type=movie' },
+    { icon: Tv, label: '\u5267\u96c6', href: '/douban?type=tv' },
+    { icon: HeartPulse, label: '\u7efc\u827a', href: '/douban?type=show' },
   ]);
 
   useEffect(() => {
@@ -47,17 +40,20 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
         ...prevItems,
         {
           icon: PartyPopper,
-          label: '自定义',
+          label: '\u81ea\u5b9a\u4e49',
           href: '/douban?type=custom',
         },
       ]);
     }
   }, []);
 
+  useEffect(() => {
+    onClose();
+  }, [pathname, onClose]);
+
   const isActive = (href: string) => {
     const typeMatch = href.match(/type=([^&]+)/)?.[1];
 
-    // 解码URL以进行正确的比较
     const decodedActive = decodeURIComponent(currentActive);
     const decodedItemHref = decodeURIComponent(href);
 
@@ -69,46 +65,54 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   };
 
   return (
-    <nav
-      className='md:hidden fixed left-0 right-0 z-[600] bg-white/90 backdrop-blur-xl border-t border-gray-200/50 overflow-hidden dark:bg-gray-900/80 dark:border-gray-700/50'
-      style={{
-        /* 紧贴视口底部，同时在内部留出安全区高度 */
-        bottom: 0,
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        minHeight: 'calc(3.5rem + env(safe-area-inset-bottom))',
-      }}
-    >
-      <ul className='flex items-center justify-around'>
-        {navItems.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <li key={item.href} className='flex-1 min-w-0'>
-              <Link
-                href={item.href}
-                className='flex flex-col items-center justify-center w-full h-14 gap-1 text-xs'
-              >
-                <item.icon
-                  className={`h-6 w-6 ${
+    <>
+      {isOpen && (
+        <button
+          type='button'
+          aria-label='\u5173\u95ed\u83dc\u5355'
+          onClick={onClose}
+          className='md:hidden fixed inset-0 z-[690] bg-black/30'
+        />
+      )}
+
+      <nav
+        className={`md:hidden fixed top-0 left-0 z-[700] h-full w-56 bg-white/95 backdrop-blur-xl border-r border-gray-200/60 shadow-2xl transition-transform duration-300 ease-out dark:bg-gray-900/90 dark:border-gray-700/60 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top) + 3.5rem)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
+        <ul className='flex flex-col gap-1 px-3 py-4'>
+          {navItems.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={onClose}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                     active
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-gray-500 dark:text-gray-400'
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/5'
                   }`}
-                />
-                <span
-                  className={
-                    active
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-gray-600 dark:text-gray-300'
-                  }
                 >
-                  {item.label}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+                  <item.icon
+                    className={`h-5 w-5 ${
+                      active
+                        ? 'text-blue-600 dark:text-blue-300'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}
+                  />
+                  <span>{item.label}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </>
   );
 };
 
