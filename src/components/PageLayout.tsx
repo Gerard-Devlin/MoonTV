@@ -1,4 +1,5 @@
 import { BackButton } from './BackButton';
+import BackToTop from './BackToTop';
 import MobileNavController from './MobileNavController';
 import Sidebar from './Sidebar';
 import { ThemeToggle } from './ThemeToggle';
@@ -35,13 +36,14 @@ const PageLayout = ({ children, activePath = '/' }: PageLayoutProps) => {
           </div>
 
           <main
-            className='flex-1 md:min-h-0'
+            className='flex-1 md:min-h-0 pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-0'
             style={{
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
             {children}
           </main>
+          <BackToTop />
         </div>
       </div>
     </div>
