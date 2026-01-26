@@ -323,8 +323,9 @@ export default function VideoCard({
         )}
 
         {/* 徽章 */}
-        {config.showRating && rate && (
-          actualDoubanId ? (
+        {config.showRating &&
+          rate &&
+          (actualDoubanId ? (
             <a
               href={`https://movie.douban.com/subject/${actualDoubanId}`}
               target='_blank'
@@ -340,8 +341,7 @@ export default function VideoCard({
               <Star size={14} stroke='currentColor' fill='currentColor' />
               <span>{rate}</span>
             </div>
-          )
-        )}
+          ))}
 
         {actualEpisodes && actualEpisodes > 1 && (
           <div className='absolute top-2 right-2 bg-blue-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md opacity-0 -translate-y-1 transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-110'>
@@ -390,7 +390,7 @@ export default function VideoCard({
         </div>
         {config.showSourceName && source_name && (
           <span className='block text-xs text-gray-500 dark:text-gray-400 mt-1'>
-            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-blue-500/60 group-hover:text-blue-600 dark:group-hover:text-blue-400'>
+            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-blue-500/60 group-hover:text-blue-600 dark:group-hover:text-blue-400 blur-[3px] opacity-70 group-hover:blur-0 group-hover:opacity-100'>
               {source_name}
             </span>
           </span>
