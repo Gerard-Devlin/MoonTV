@@ -109,7 +109,7 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
             Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
+                className='min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
               >
                 <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
                   <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
@@ -124,7 +124,7 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
               return (
                 <div
                   key={record.key}
-                  className='min-w-[128px] w-32 sm:min-w-[180px] sm:w-44'
+                  className='min-w-[160px] w-40 sm:min-w-[180px] sm:w-44'
                 >
                   <VideoCard
                     id={id}
