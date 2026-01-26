@@ -100,8 +100,8 @@ const MobileHeader = ({
       }`}
       style={{ top: 0, paddingTop: 'env(safe-area-inset-top)' }}
     >
-      <div className='mx-auto mt-3 w-[calc(100%-1.5rem)] max-w-[720px] rounded-3xl bg-white/70 backdrop-blur-xl border border-gray-200/60 shadow-sm dark:bg-gray-900/70 dark:border-gray-700/60'>
-        <div className='h-12 flex items-center justify-between px-4'>
+      <div className='relative mx-auto mt-3 w-[calc(100%-1.5rem)] max-w-[720px] rounded-3xl bg-white/70 backdrop-blur-xl border border-gray-200/60 shadow-sm dark:bg-gray-900/70 dark:border-gray-700/60'>
+        <div className='relative h-12 flex items-center justify-between px-4'>
           <div className='flex items-center gap-2'>
             {onMenuToggle && (
               <button
