@@ -4,7 +4,16 @@
 
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
-import { Heart } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Film,
+  Heart,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Zap,
+} from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
@@ -661,8 +670,8 @@ function PlayPageClient() {
       setLoadingStage(currentSource && currentId ? 'fetching' : 'searching');
       setLoadingMessage(
         currentSource && currentId
-          ? '🎬 正在获取视频详情...'
-          : '🔍 正在搜索播放源...'
+          ? '正在获取视频详情...'
+          : '正在搜索播放源...'
       );
 
       let sourcesInfo = await fetchSourcesData(searchTitle || videoTitle);
@@ -702,7 +711,7 @@ function PlayPageClient() {
         optimizationEnabled
       ) {
         setLoadingStage('preferring');
-        setLoadingMessage('⚡ 正在优选最佳播放源...');
+        setLoadingMessage('正在优选最佳播放源...');
 
         detailData = await preferBestSource(sourcesInfo);
       }
@@ -730,7 +739,7 @@ function PlayPageClient() {
       window.history.replaceState({}, '', newUrl.toString());
 
       setLoadingStage('ready');
-      setLoadingMessage('✨ 准备就绪，即将开始播放...');
+      setLoadingMessage('准备就绪，即将开始播放...');
 
       // 短暂延迟让用户看到完成状态
       setTimeout(() => {
@@ -1580,55 +1589,39 @@ function PlayPageClient() {
     };
   }, []);
 
+  const LoadingIcon =
+    loadingStage === 'preferring'
+      ? Zap
+      : loadingStage === 'fetching'
+      ? Film
+      : loadingStage === 'ready'
+      ? Sparkles
+      : Search;
+  const VideoLoadingIcon = RefreshCw;
+
   if (loading) {
     return (
       <PageLayout activePath='/play'>
         <div className='flex items-center justify-center min-h-screen bg-transparent'>
           <div className='text-center max-w-md mx-auto px-6'>
             <div className='flex justify-center mb-8'>
-              <div className='play-loader' aria-hidden='true'>
-                <svg width='100' height='100' viewBox='0 0 100 100'>
-                  <defs>
-                    <mask id='play-loader-clipping'>
-                      <polygon
-                        points='0,0 100,0 100,100 0,100'
-                        fill='black'
-                      ></polygon>
-                      <polygon
-                        points='25,25 75,25 50,75'
-                        fill='white'
-                      ></polygon>
-                      <polygon
-                        points='50,25 75,75 25,75'
-                        fill='white'
-                      ></polygon>
-                      <polygon
-                        points='35,35 65,35 50,65'
-                        fill='white'
-                      ></polygon>
-                      <polygon
-                        points='35,35 65,35 50,65'
-                        fill='white'
-                      ></polygon>
-                      <polygon
-                        points='35,35 65,35 50,65'
-                        fill='white'
-                      ></polygon>
-                      <polygon
-                        points='35,35 65,35 50,65'
-                        fill='white'
-                      ></polygon>
-                    </mask>
-                  </defs>
-                </svg>
-                <div className='play-loader__box'></div>
+              {/* From Uiverse.io by jaykdoe */}
+              <div className='stack' aria-hidden='true'>
+                <div className='stack__card'></div>
+                <div className='stack__card'></div>
+                <div className='stack__card'></div>
+                <div className='stack__card'></div>
+                <div className='stack__card'></div>
               </div>
             </div>
 
             {/* 加载消息 */}
             <div className='space-y-2'>
               <p className='text-xl font-semibold text-gray-800 dark:text-gray-200 animate-pulse'>
-                {loadingMessage}
+                <span className='inline-flex items-center gap-2'>
+                  <LoadingIcon className='h-5 w-5' />
+                  {loadingMessage}
+                </span>
               </p>
             </div>
           </div>
@@ -1645,7 +1638,7 @@ function PlayPageClient() {
             {/* 错误图标 */}
             <div className='relative mb-8'>
               <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
-                <div className='text-white text-4xl'>😵</div>
+                <AlertTriangle className='h-10 w-10 text-white' />
                 {/* 脉冲效果 */}
                 <div className='absolute -inset-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl opacity-20 animate-pulse'></div>
               </div>
@@ -1689,14 +1682,24 @@ function PlayPageClient() {
                 }
                 className='w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl'
               >
-                {videoTitle ? '🔍 返回搜索' : '← 返回上页'}
+                <span className='inline-flex items-center justify-center gap-2'>
+                  {videoTitle ? (
+                    <Search className='h-4 w-4' />
+                  ) : (
+                    <ArrowLeft className='h-4 w-4' />
+                  )}
+                  {videoTitle ? '返回搜索' : '返回上页'}
+                </span>
               </button>
 
               <button
                 onClick={() => window.location.reload()}
                 className='w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200'
               >
-                🔄 重新尝试
+                <span className='inline-flex items-center justify-center gap-2'>
+                  <RefreshCw className='h-4 w-4' />
+                  重新尝试
+                </span>
               </button>
             </div>
           </div>
@@ -1815,9 +1818,12 @@ function PlayPageClient() {
                       {/* 换源消息 */}
                       <div className='space-y-2'>
                         <p className='text-xl font-semibold text-white animate-pulse'>
-                          {videoLoadingStage === 'sourceChanging'
-                            ? '🔄 切换播放源...'
-                            : '🔄 视频加载中...'}
+                          <span className='inline-flex items-center gap-2'>
+                            <VideoLoadingIcon className='h-5 w-5 animate-spin' />
+                            {videoLoadingStage === 'sourceChanging'
+                              ? '切换播放源...'
+                              : '视频加载中...'}
+                          </span>
                         </p>
                       </div>
                     </div>
