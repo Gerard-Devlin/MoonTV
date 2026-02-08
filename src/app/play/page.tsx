@@ -7,11 +7,14 @@ import Hls from 'hls.js';
 import {
   AlertTriangle,
   ArrowLeft,
+  Bug,
   Film,
   Heart,
+  Info,
   RefreshCw,
   Search,
   Sparkles,
+  WifiOff,
   Zap,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -1633,74 +1636,49 @@ function PlayPageClient() {
   if (error) {
     return (
       <PageLayout activePath='/play'>
-        <div className='flex items-center justify-center min-h-screen bg-transparent'>
-          <div className='text-center max-w-md mx-auto px-6'>
-            {/* 错误图标 */}
-            <div className='relative mb-8'>
-              <div className='relative mx-auto w-24 h-24 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300'>
-                <AlertTriangle className='h-10 w-10 text-white' />
-                {/* 脉冲效果 */}
-                <div className='absolute -inset-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl opacity-20 animate-pulse'></div>
+        <div className='flex min-h-screen items-center justify-center bg-transparent px-6 py-12'>
+          <div className='w-full max-w-2xl rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70 sm:p-10'>
+            <div className='flex flex-col gap-5 text-center'>
+              <div className='flex flex-col items-center gap-3'>
+                <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/15'>
+                  <AlertTriangle className='h-10 w-10 text-rose-500' />
+                </div>
+                <div>
+                  <h2 className='text-2xl font-semibold text-slate-900 dark:text-slate-100'>
+                    哎呀，出现了一些问题
+                  </h2>
+                  <p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
+                    播放源暂时不可用或没有匹配结果。
+                  </p>
+                </div>
               </div>
 
-              {/* 浮动错误粒子 */}
-              <div className='absolute top-0 left-0 w-full h-full pointer-events-none'>
-                <div className='absolute top-2 left-2 w-2 h-2 bg-red-400 rounded-full animate-bounce'></div>
-                <div
-                  className='absolute top-4 right-4 w-1.5 h-1.5 bg-orange-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '0.5s' }}
-                ></div>
-                <div
-                  className='absolute bottom-3 left-6 w-1 h-1 bg-yellow-400 rounded-full animate-bounce'
-                  style={{ animationDelay: '1s' }}
-                ></div>
-              </div>
-            </div>
-
-            {/* 错误信息 */}
-            <div className='space-y-4 mb-8'>
-              <h2 className='text-2xl font-bold text-gray-800 dark:text-gray-200'>
-                哎呀，出现了一些问题
-              </h2>
-              <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4'>
-                <p className='text-red-600 dark:text-red-400 font-medium'>
-                  {error}
-                </p>
-              </div>
-              <p className='text-sm text-gray-500 dark:text-gray-400'>
-                请检查网络连接或尝试刷新页面
-              </p>
-            </div>
-
-            {/* 操作按钮 */}
-            <div className='space-y-3'>
-              <button
-                onClick={() =>
-                  videoTitle
-                    ? router.push(`/search?q=${encodeURIComponent(videoTitle)}`)
-                    : router.back()
-                }
-                className='w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl'
-              >
-                <span className='inline-flex items-center justify-center gap-2'>
+              <div className='grid gap-3 sm:grid-cols-2'>
+                <button
+                  onClick={() =>
+                    videoTitle
+                      ? router.push(
+                          `/search?q=${encodeURIComponent(videoTitle)}`
+                        )
+                      : router.back()
+                  }
+                  className='group inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-200'
+                >
                   {videoTitle ? (
-                    <Search className='h-4 w-4' />
+                    <Search className='h-4 w-4 text-black transition-transform duration-200 group-hover:scale-110' />
                   ) : (
-                    <ArrowLeft className='h-4 w-4' />
+                    <ArrowLeft className='h-4 w-4 text-indigo-500 transition-transform duration-200 group-hover:-translate-x-0.5' />
                   )}
                   {videoTitle ? '返回搜索' : '返回上页'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => window.location.reload()}
-                className='w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200'
-              >
-                <span className='inline-flex items-center justify-center gap-2'>
-                  <RefreshCw className='h-4 w-4' />
+                </button>
+                <button
+                  onClick={() => window.location.reload()}
+                  className='group inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300'
+                >
+                  <RefreshCw className='h-4 w-4 transition-transform duration-200 group-hover:rotate-180' />
                   重新尝试
-                </span>
-              </button>
+                </button>
+              </div>
             </div>
           </div>
         </div>
