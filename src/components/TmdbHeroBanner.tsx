@@ -1,6 +1,16 @@
 'use client';
 
-import { CalendarDays, Info, Play, Star } from 'lucide-react';
+import {
+  CalendarDays,
+  Clock3,
+  Globe2,
+  Info,
+  Loader2,
+  Play,
+  Star,
+  Users,
+  X,
+} from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
@@ -56,6 +66,91 @@ interface TmdbLogoItem {
 
 interface TmdbImagesResponse {
   logos?: TmdbLogoItem[];
+}
+
+interface TmdbDetailCastItem {
+  id: number;
+  name: string;
+  character: string;
+  profile: string;
+}
+
+interface TmdbHeroDetail {
+  id: number;
+  mediaType: 'movie' | 'tv';
+  title: string;
+  overview: string;
+  backdrop: string;
+  poster: string;
+  score: string;
+  voteCount: number;
+  year: string;
+  runtime: number | null;
+  seasons: number | null;
+  episodes: number | null;
+  contentRating: string;
+  genres: string[];
+  language: string;
+  popularity: number | null;
+  cast: TmdbDetailCastItem[];
+  trailerUrl: string;
+}
+
+interface TmdbDetailRawGenre {
+  name?: string;
+}
+
+interface TmdbDetailRawCast {
+  id?: number;
+  name?: string;
+  character?: string;
+  profile_path?: string | null;
+}
+
+interface TmdbDetailRawVideo {
+  site?: string;
+  type?: string;
+  key?: string;
+  official?: boolean;
+  iso_639_1?: string | null;
+}
+
+interface TmdbDetailRawResponse {
+  id?: number;
+  title?: string;
+  name?: string;
+  overview?: string;
+  backdrop_path?: string | null;
+  poster_path?: string | null;
+  vote_average?: number;
+  vote_count?: number;
+  release_date?: string;
+  first_air_date?: string;
+  runtime?: number;
+  episode_run_time?: number[];
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+  original_language?: string;
+  popularity?: number;
+  genres?: TmdbDetailRawGenre[];
+  credits?: {
+    cast?: TmdbDetailRawCast[];
+  };
+  videos?: {
+    results?: TmdbDetailRawVideo[];
+  };
+  release_dates?: {
+    results?: Array<{
+      iso_3166_1?: string;
+      release_dates?: Array<{ certification?: string }>;
+    }>;
+  };
+  content_ratings?: {
+    results?: Array<{
+      iso_3166_1?: string;
+      rating?: string;
+    }>;
+  };
 }
 
 type HeroMediaFilter = 'all' | 'movie' | 'tv';
@@ -127,17 +222,6 @@ function selectBestLogoPath(logos: TmdbLogoItem[]): string {
   return sorted[0]?.file_path || '';
 }
 
-function buildResolveUrl(item: TmdbHeroItem): string {
-  const params = new URLSearchParams({
-    title: item.title,
-    type: item.mediaType,
-  });
-  if (item.year) {
-    params.set('year', item.year);
-  }
-  return `/api/douban/resolve?${params.toString()}`;
-}
-
 function buildPlayUrl(item: TmdbHeroItem): string {
   const params = new URLSearchParams({
     title: item.title,
@@ -147,6 +231,129 @@ function buildPlayUrl(item: TmdbHeroItem): string {
     params.set('year', item.year);
   }
   return `/play?${params.toString()}`;
+}
+
+function formatRuntime(minutes: number | null): string {
+  if (!minutes || minutes <= 0) return '';
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`;
+}
+
+function pickPreferredCertification(byCountry: Map<string, string>): string {
+  const preferredCountries = ['US', 'CN', 'GB', 'HK', 'JP'];
+  for (const country of preferredCountries) {
+    const certification = byCountry.get(country);
+    if (certification) return certification;
+  }
+  const first = byCountry.values().next();
+  return first.done ? '' : first.value;
+}
+
+function pickMovieContentRatingFromRaw(raw: TmdbDetailRawResponse): string {
+  const byCountry = new Map<string, string>();
+  for (const item of raw.release_dates?.results || []) {
+    const country = (item.iso_3166_1 || '').toUpperCase();
+    if (!country) continue;
+    const certification =
+      item.release_dates?.find((entry) => (entry.certification || '').trim())
+        ?.certification || '';
+    if (!certification) continue;
+    byCountry.set(country, certification);
+  }
+  return pickPreferredCertification(byCountry);
+}
+
+function pickTvContentRatingFromRaw(raw: TmdbDetailRawResponse): string {
+  const byCountry = new Map<string, string>();
+  for (const item of raw.content_ratings?.results || []) {
+    const country = (item.iso_3166_1 || '').toUpperCase();
+    const rating = (item.rating || '').trim();
+    if (!country || !rating) continue;
+    byCountry.set(country, rating);
+  }
+  return pickPreferredCertification(byCountry);
+}
+
+function pickTrailerUrlFromRaw(raw: TmdbDetailRawResponse): string {
+  const candidates = (raw.videos?.results || []).filter(
+    (item) =>
+      item.site === 'YouTube' &&
+      item.type === 'Trailer' &&
+      Boolean(item.key)
+  );
+  if (!candidates.length) return '';
+
+  const getLangPriority = (lang?: string | null): number => {
+    if (lang === 'zh') return 3;
+    if (lang === 'en') return 2;
+    if (lang === null || lang === undefined) return 1;
+    return 0;
+  };
+
+  const sorted = [...candidates].sort((a, b) => {
+    const officialDelta = Number(Boolean(b.official)) - Number(Boolean(a.official));
+    if (officialDelta !== 0) return officialDelta;
+    return getLangPriority(b.iso_639_1) - getLangPriority(a.iso_639_1);
+  });
+
+  const key = sorted[0]?.key;
+  return key ? `https://www.youtube.com/watch?v=${key}` : '';
+}
+
+function mapRawDetailToHeroDetail(
+  raw: TmdbDetailRawResponse,
+  item: TmdbHeroItem
+): TmdbHeroDetail {
+  const cast = (raw.credits?.cast || [])
+    .slice(0, 8)
+    .map((member) => ({
+      id: member.id ?? 0,
+      name: member.name || '',
+      character: member.character || '',
+      profile: member.profile_path
+        ? `${TMDB_IMAGE_BASE_URL}/w185${member.profile_path}`
+        : '',
+    }))
+    .filter((member) => member.id > 0 && member.name);
+
+  const contentRating =
+    item.mediaType === 'movie'
+      ? pickMovieContentRatingFromRaw(raw)
+      : pickTvContentRatingFromRaw(raw);
+
+  const runtime =
+    item.mediaType === 'movie'
+      ? (raw.runtime ?? null)
+      : (raw.episode_run_time?.[0] ?? null);
+
+  return {
+    id: raw.id || item.id,
+    mediaType: item.mediaType,
+    title: (raw.title || raw.name || item.title || '').trim(),
+    overview: (raw.overview || item.overview || '').trim() || 'No overview available.',
+    backdrop: raw.backdrop_path
+      ? `${TMDB_IMAGE_BASE_URL}/original${raw.backdrop_path}`
+      : item.backdrop,
+    poster: raw.poster_path
+      ? `${TMDB_IMAGE_BASE_URL}/w500${raw.poster_path}`
+      : item.poster,
+    score: toScore(raw.vote_average) || item.score,
+    voteCount: raw.vote_count || 0,
+    year: toYear(raw.release_date || raw.first_air_date) || item.year,
+    runtime,
+    seasons: raw.number_of_seasons ?? null,
+    episodes: raw.number_of_episodes ?? null,
+    contentRating,
+    genres: (raw.genres || [])
+      .map((genre) => (genre.name || '').trim())
+      .filter(Boolean),
+    language: (raw.original_language || '').toUpperCase(),
+    popularity:
+      typeof raw.popularity === 'number' ? Math.round(raw.popularity) : null,
+    cast,
+    trailerUrl: pickTrailerUrlFromRaw(raw),
+  };
 }
 
 function matchesMediaFilter(
@@ -167,9 +374,16 @@ export default function TmdbHeroBanner({
   const [dragOffsetX, setDragOffsetX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [heroWidth, setHeroWidth] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailItem, setDetailItem] = useState<TmdbHeroItem | null>(null);
+  const [detailData, setDetailData] = useState<TmdbHeroDetail | null>(null);
   const heroRef = useRef<HTMLDivElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const touchAxisRef = useRef<'x' | 'y' | null>(null);
+  const detailCacheRef = useRef<Record<string, TmdbHeroDetail>>({});
+  const detailRequestIdRef = useRef(0);
   const fullWidthSectionClass = 'relative mb-8 -mx-2 sm:-mx-10';
 
   const goToNext = useCallback(() => {
@@ -338,6 +552,93 @@ export default function TmdbHeroBanner({
     }
   }, []);
 
+  const fetchDetailDirectFromTmdb = useCallback(async (item: TmdbHeroItem) => {
+    if (!TMDB_CLIENT_API_KEY) return null;
+
+    const appendToResponse =
+      item.mediaType === 'movie'
+        ? 'credits,videos,release_dates'
+        : 'credits,videos,content_ratings';
+
+    const params = new URLSearchParams({
+      api_key: TMDB_CLIENT_API_KEY,
+      language: 'zh-CN',
+      append_to_response: appendToResponse,
+    });
+
+    const response = await fetch(
+      `${TMDB_API_BASE_URL}/${item.mediaType}/${item.id}?${params.toString()}`,
+      { cache: 'no-store' }
+    );
+
+    if (!response.ok) return null;
+
+    const raw = (await response.json()) as TmdbDetailRawResponse;
+    return mapRawDetailToHeroDetail(raw, item);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailOpen(false);
+    setDetailLoading(false);
+    setDetailError(null);
+    detailRequestIdRef.current += 1;
+  }, []);
+
+  const handleOpenDetail = useCallback(async (item: TmdbHeroItem) => {
+    const cacheKey = `${item.mediaType}-${item.id}`;
+    setDetailOpen(true);
+    setDetailItem(item);
+    setDetailError(null);
+
+    const cached = detailCacheRef.current[cacheKey];
+    if (cached) {
+      setDetailData(cached);
+      setDetailLoading(false);
+      return;
+    }
+
+    setDetailData(null);
+    setDetailLoading(true);
+    const requestId = ++detailRequestIdRef.current;
+    let resolved: TmdbHeroDetail | null = null;
+    try {
+      const params = new URLSearchParams({
+        id: String(item.id),
+        mediaType: item.mediaType,
+      });
+      const response = await fetch(`/api/tmdb/detail?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        throw new Error(`TMDB detail request failed: ${response.status}`);
+      }
+      const data = (await response.json()) as TmdbHeroDetail;
+      if (!data?.id) {
+        throw new Error('TMDB detail returned empty payload');
+      }
+      resolved = data;
+    } catch (err) {
+      try {
+        resolved = await fetchDetailDirectFromTmdb(item);
+      } catch {
+        resolved = null;
+      }
+
+      if (!resolved && detailRequestIdRef.current === requestId) {
+        setDetailError((err as Error).message || '加载详情失败');
+      }
+    } finally {
+      if (detailRequestIdRef.current === requestId) {
+        if (resolved) {
+          detailCacheRef.current[cacheKey] = resolved;
+          setDetailData(resolved);
+          setDetailError(null);
+        }
+        setDetailLoading(false);
+      }
+    }
+  }, [fetchDetailDirectFromTmdb]);
+
   const fetchHeroData = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
@@ -428,17 +729,38 @@ export default function TmdbHeroBanner({
   useEffect(() => {
     if (items.length <= 1) return;
     if (isDragging) return;
+    if (detailOpen) return;
     const timer = setInterval(() => {
       goToNext();
     }, 7000);
     return () => clearInterval(timer);
-  }, [goToNext, isDragging, items.length]);
+  }, [detailOpen, goToNext, isDragging, items.length]);
 
   useEffect(() => {
     if (activeIndex >= items.length) {
       setActiveIndex(0);
     }
   }, [activeIndex, items.length]);
+
+  useEffect(() => {
+    if (!detailOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleCloseDetail();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [detailOpen, handleCloseDetail]);
 
   const activeItem = useMemo(() => items[activeIndex], [items, activeIndex]);
   const dragOffsetPercent =
@@ -576,15 +898,14 @@ export default function TmdbHeroBanner({
                 <Play size={16} />
                 播放
               </button>
-              <a
-                href={buildResolveUrl(activeItem)}
-                target='_blank'
-                rel='noopener noreferrer'
+              <button
+                type='button'
+                onClick={() => handleOpenDetail(activeItem)}
                 className='inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:bg-white/20 hover:shadow-xl'
               >
                 <Info size={16} />
                 详情
-              </a>
+              </button>
             </div>
 
             <div className='relative hidden lg:block pt-2'>
@@ -691,15 +1012,14 @@ export default function TmdbHeroBanner({
                 <Play size={14} />
                 播放
               </button>
-              <a
-                href={buildResolveUrl(activeItem)}
-                target='_blank'
-                rel='noopener noreferrer'
+              <button
+                type='button'
+                onClick={() => handleOpenDetail(activeItem)}
                 className='inline-flex items-center justify-center gap-2 rounded-xl border border-white/35 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm'
               >
                 <Info size={14} />
                 详情
-              </a>
+              </button>
             </div>
 
             <div className='mt-3 flex justify-center gap-2'>
@@ -719,6 +1039,229 @@ export default function TmdbHeroBanner({
             </div>
           </div>
         </div>
+
+        {detailOpen && (
+          <div
+            className='fixed inset-0 z-[850] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
+            onClick={handleCloseDetail}
+          >
+            <div
+              className='relative w-full max-w-4xl overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type='button'
+                onClick={handleCloseDetail}
+                className='absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white/80 transition-colors hover:text-white'
+                aria-label='Close detail dialog'
+              >
+                <X size={18} />
+              </button>
+
+              <div className='absolute inset-0'>
+                {detailData?.backdrop ? (
+                  <Image
+                    src={safeImageUrl(detailData.backdrop)}
+                    alt={detailData.title}
+                    fill
+                    className='object-cover opacity-30'
+                  />
+                ) : null}
+                <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
+              </div>
+
+              <div className='relative max-h-[85vh] overflow-y-auto p-4 sm:p-6'>
+                {detailLoading && (
+                  <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-white/80'>
+                    <Loader2 className='h-7 w-7 animate-spin' />
+                    <p className='text-sm'>正在加载详情...</p>
+                  </div>
+                )}
+
+                {!detailLoading && detailError && (
+                  <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-center'>
+                    <p className='text-base font-medium text-white'>详情加载失败</p>
+                    <p className='text-sm text-white/70'>{detailError}</p>
+                    {detailItem ? (
+                      <button
+                        type='button'
+                        onClick={() => handleOpenDetail(detailItem)}
+                        className='mt-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20'
+                      >
+                        重试
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+
+                {!detailLoading && !detailError && detailData && (
+                  <div className='grid gap-6 md:grid-cols-[220px,1fr]'>
+                    <div className='relative mx-auto aspect-[2/3] w-40 overflow-hidden rounded-lg border border-white/20 shadow-xl md:mx-0 md:w-full'>
+                      {detailData.poster || detailData.backdrop ? (
+                        <Image
+                          src={safeImageUrl(
+                            detailData.poster || detailData.backdrop
+                          )}
+                          alt={detailData.title}
+                          fill
+                          className='object-cover'
+                        />
+                      ) : (
+                        <div className='flex h-full w-full items-center justify-center bg-white/10 text-xs text-white/60'>
+                          No Poster
+                        </div>
+                      )}
+                    </div>
+
+                    <div className='space-y-4'>
+                      {detailItem?.logo ? (
+                        <div className='relative h-12 w-full max-w-[460px] sm:h-16'>
+                          <Image
+                            src={safeImageUrl(detailItem.logo)}
+                            alt={`${detailData.title} logo`}
+                            fill
+                            className='object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
+                          />
+                        </div>
+                      ) : (
+                        <h3 className='text-2xl font-bold sm:text-3xl'>
+                          {detailData.title}
+                        </h3>
+                      )}
+
+                      <div className='flex flex-wrap items-center gap-3 text-sm text-white/90'>
+                        {detailData.score && (
+                          <span className='inline-flex items-center gap-1'>
+                            <Star
+                              size={15}
+                              className='text-yellow-400'
+                              fill='currentColor'
+                            />
+                            <span className='font-semibold'>
+                              {detailData.score}
+                            </span>
+                            {detailData.voteCount > 0 ? (
+                              <span className='text-white/65'>
+                                ({detailData.voteCount})
+                              </span>
+                            ) : null}
+                          </span>
+                        )}
+
+                        {detailData.year && (
+                          <span className='inline-flex items-center gap-1 text-white/80'>
+                            <CalendarDays size={14} />
+                            {detailData.year}
+                          </span>
+                        )}
+
+                        {detailData.runtime ? (
+                          <span className='inline-flex items-center gap-1 text-white/80'>
+                            <Clock3 size={14} />
+                            {formatRuntime(detailData.runtime)}
+                          </span>
+                        ) : null}
+
+                        {detailData.mediaType === 'tv' &&
+                        detailData.seasons &&
+                        detailData.episodes ? (
+                          <span className='inline-flex items-center gap-1 text-white/80'>
+                            <Users size={14} />
+                            {detailData.seasons} Seasons / {detailData.episodes} Episodes
+                          </span>
+                        ) : null}
+
+                        {detailData.contentRating ? (
+                          <span className='rounded border border-white/35 px-1.5 py-0.5 text-[11px] font-medium text-white/95'>
+                            {detailData.contentRating}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {detailData.genres.length > 0 && (
+                        <div className='flex flex-wrap gap-2'>
+                          {detailData.genres.map((genre) => (
+                            <span
+                              key={genre}
+                              className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90'
+                            >
+                              {genre}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className='text-sm leading-6 text-white/85 sm:text-base'>
+                        {detailData.overview}
+                      </p>
+
+                      <div className='flex flex-wrap items-center gap-4 text-xs text-white/70 sm:text-sm'>
+                        {detailData.language ? (
+                          <span className='inline-flex items-center gap-1'>
+                            <Globe2 size={14} />
+                            {detailData.language}
+                          </span>
+                        ) : null}
+                        {typeof detailData.popularity === 'number' ? (
+                          <span>Popularity: {detailData.popularity}</span>
+                        ) : null}
+                      </div>
+
+                      {detailData.cast.length > 0 && (
+                        <div className='space-y-2'>
+                          <p className='text-sm font-semibold text-white/90'>
+                            主演
+                          </p>
+                          <div className='flex flex-wrap gap-2'>
+                            {detailData.cast.map((person) => (
+                              <span
+                                key={`${person.id}-${person.name}`}
+                                className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90'
+                              >
+                                {person.name}
+                                {person.character
+                                  ? ` · ${person.character}`
+                                  : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className='flex flex-wrap gap-3 pt-1'>
+                        <button
+                          type='button'
+                          onClick={() => {
+                            if (detailItem) {
+                              handleCloseDetail();
+                              router.push(buildPlayUrl(detailItem));
+                            }
+                          }}
+                          className='inline-flex items-center gap-2 rounded-lg border border-white/35 bg-white/20 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/30'
+                        >
+                          <Play size={14} />
+                          立即播放
+                        </button>
+
+                        {detailData.trailerUrl ? (
+                          <a
+                            href={detailData.trailerUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='inline-flex items-center gap-2 rounded-lg border border-white/35 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20'
+                          >
+                            <Info size={14} />
+                            预告片
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </section>
