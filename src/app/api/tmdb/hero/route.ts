@@ -8,6 +8,7 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 const HERO_CACHE_SECONDS = 300;
 
 type TmdbMediaType = 'movie' | 'tv';
+type HeroMediaFilter = 'all' | TmdbMediaType;
 
 interface TmdbTrendingItem {
   id: number;
@@ -133,7 +134,15 @@ async function fetchLogoForItem(
   }
 }
 
-export async function GET() {
+function normalizeMediaFilter(value: string | null): HeroMediaFilter {
+  if (value === 'movie' || value === 'tv') return value;
+  return 'all';
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const mediaFilter = normalizeMediaFilter(searchParams.get('mediaType'));
+
   const apiKey =
     process.env.TMDB_API_KEY ||
     process.env.NEXT_PUBLIC_TMDB_API_KEY ||
@@ -167,6 +176,11 @@ export async function GET() {
     const data = (await response.json()) as TmdbTrendingResponse;
     const baseResults = (data.results || [])
       .filter((item) => item.media_type === 'movie' || item.media_type === 'tv')
+      .filter(
+        (item) =>
+          mediaFilter === 'all' ||
+          item.media_type === mediaFilter
+      )
       .map(mapHeroItem)
       .filter((item): item is TmdbHeroItem => Boolean(item))
       .slice(0, 8);

@@ -58,6 +58,12 @@ interface TmdbImagesResponse {
   logos?: TmdbLogoItem[];
 }
 
+type HeroMediaFilter = 'all' | 'movie' | 'tv';
+
+interface TmdbHeroBannerProps {
+  mediaFilter?: HeroMediaFilter;
+}
+
 const TMDB_CLIENT_API_KEY =
   process.env.NEXT_PUBLIC_TMDB_API_KEY || '45bf9a17a758ffdaf0193182c8f42625';
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
@@ -143,7 +149,16 @@ function buildPlayUrl(item: TmdbHeroItem): string {
   return `/play?${params.toString()}`;
 }
 
-export default function TmdbHeroBanner() {
+function matchesMediaFilter(
+  mediaType: 'movie' | 'tv',
+  mediaFilter: HeroMediaFilter
+): boolean {
+  return mediaFilter === 'all' || mediaType === mediaFilter;
+}
+
+export default function TmdbHeroBanner({
+  mediaFilter = 'all',
+}: TmdbHeroBannerProps) {
   const router = useRouter();
   const [items, setItems] = useState<TmdbHeroItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -247,7 +262,8 @@ export default function TmdbHeroBanner() {
     const data = (await response.json()) as TmdbRawResponse;
     const baseItems = (data.results || [])
       .map(mapRawItemToHero)
-      .filter((item): item is TmdbHeroItem => Boolean(item))
+      .filter((item): item is TmdbHeroItem => item !== null)
+      .filter((item) => matchesMediaFilter(item.mediaType, mediaFilter))
       .slice(0, HERO_ITEM_LIMIT);
 
     const itemsWithLogo = await Promise.all(
@@ -261,7 +277,7 @@ export default function TmdbHeroBanner() {
     );
     const logoOnlyItems = itemsWithLogo.filter((item) => Boolean(item.logo));
     return logoOnlyItems.length > 0 ? logoOnlyItems : itemsWithLogo;
-  }, [fetchLogoForItem]);
+  }, [fetchLogoForItem, mediaFilter]);
 
   const safeImageUrl = useCallback((url: string): string => {
     try {
@@ -275,7 +291,13 @@ export default function TmdbHeroBanner() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/tmdb/hero?ts=${Date.now()}`, {
+      const params = new URLSearchParams({
+        ts: Date.now().toString(),
+      });
+      if (mediaFilter !== 'all') {
+        params.set('mediaType', mediaFilter);
+      }
+      const response = await fetch(`/api/tmdb/hero?${params.toString()}`, {
         signal,
         cache: 'no-store',
       });
@@ -291,7 +313,9 @@ export default function TmdbHeroBanner() {
         return;
       }
       const data = (await response.json()) as TmdbHeroResponse;
-      let nextItems = data.results || [];
+      let nextItems = (data.results || []).filter((item) =>
+        matchesMediaFilter(item.mediaType, mediaFilter)
+      );
       if (nextItems.length === 0) {
         nextItems = await fetchDirectFromTmdb(signal);
       }
@@ -322,7 +346,7 @@ export default function TmdbHeroBanner() {
     } finally {
       setLoading(false);
     }
-  }, [fetchDirectFromTmdb]);
+  }, [fetchDirectFromTmdb, mediaFilter]);
 
   useEffect(() => {
     const controller = new AbortController();

@@ -13,6 +13,7 @@ import DoubanCardSkeleton from '@/components/DoubanCardSkeleton';
 import DoubanCustomSelector from '@/components/DoubanCustomSelector';
 import DoubanSelector from '@/components/DoubanSelector';
 import PageLayout from '@/components/PageLayout';
+import TmdbHeroBanner from '@/components/TmdbHeroBanner';
 import VideoCard from '@/components/VideoCard';
 
 function DoubanPageClient() {
@@ -374,9 +375,28 @@ function DoubanPageClient() {
     return activePath;
   };
 
+  const hasTopHero = type === 'movie' || type === 'tv';
+
   return (
-    <PageLayout activePath={getActivePath()}>
-      <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible'>
+    <PageLayout
+      activePath={getActivePath()}
+      disableMobileTopPadding={hasTopHero}
+    >
+      <div
+        className={`overflow-visible ${
+          hasTopHero
+            ? 'px-0 sm:px-10 pb-4 sm:pb-8'
+            : 'px-4 sm:px-10 py-4 sm:py-8'
+        }`}
+      >
+        {hasTopHero && (
+          <div className='px-2 sm:px-0'>
+            <TmdbHeroBanner mediaFilter={type === 'movie' ? 'movie' : 'tv'} />
+          </div>
+        )}
+
+        <div className={hasTopHero ? 'px-4 sm:px-0' : ''}>
+
         {/* 页面标题和选择器 */}
         <div className='mb-6 sm:mb-8 space-y-4 sm:space-y-6'>
           {/* 页面标题 */}
@@ -466,6 +486,7 @@ function DoubanPageClient() {
           {!loading && doubanData.length === 0 && (
             <div className='text-center text-gray-500 py-8'>暂无相关内容</div>
           )}
+        </div>
         </div>
       </div>
     </PageLayout>

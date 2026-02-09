@@ -8,9 +8,14 @@ import { UserMenu } from './UserMenu';
 interface PageLayoutProps {
   children: React.ReactNode;
   activePath?: string;
+  disableMobileTopPadding?: boolean;
 }
 
-const PageLayout = ({ children, activePath = '/' }: PageLayoutProps) => {
+const PageLayout = ({
+  children,
+  activePath = '/',
+  disableMobileTopPadding = false,
+}: PageLayoutProps) => {
   const isHomePage = activePath === '/';
 
   return (
@@ -39,7 +44,9 @@ const PageLayout = ({ children, activePath = '/' }: PageLayoutProps) => {
 
           <main
             className={`flex-1 md:min-h-0 ${
-              isHomePage ? 'pt-0 md:pt-0' : 'pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-0'
+              isHomePage || disableMobileTopPadding
+                ? 'pt-0 md:pt-0'
+                : 'pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-0'
             }`}
             style={{
               paddingBottom: 'env(safe-area-inset-bottom)',
