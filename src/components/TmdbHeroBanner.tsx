@@ -164,7 +164,12 @@ export default function TmdbHeroBanner({
   const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dragOffsetX, setDragOffsetX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [heroWidth, setHeroWidth] = useState(0);
+  const heroRef = useRef<HTMLDivElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchAxisRef = useRef<'x' | 'y' | null>(null);
   const fullWidthSectionClass = 'relative mb-8 -mx-2 sm:-mx-10';
 
   const goToNext = useCallback(() => {
@@ -181,11 +186,44 @@ export default function TmdbHeroBanner({
     const touch = event.touches[0];
     if (!touch) return;
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    touchAxisRef.current = null;
+    setIsDragging(false);
+    setDragOffsetX(0);
   }, []);
 
   const clearTouchState = useCallback(() => {
     touchStartRef.current = null;
+    touchAxisRef.current = null;
+    setIsDragging(false);
+    setDragOffsetX(0);
   }, []);
+
+  const handleHeroTouchMove = useCallback(
+    (event: TouchEvent<HTMLDivElement>) => {
+      const start = touchStartRef.current;
+      if (!start || items.length <= 1) return;
+
+      const touch = event.touches[0];
+      if (!touch) return;
+
+      const deltaX = touch.clientX - start.x;
+      const deltaY = touch.clientY - start.y;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      if (touchAxisRef.current === null && (absX > 6 || absY > 6)) {
+        touchAxisRef.current = absX > absY ? 'x' : 'y';
+      }
+
+      if (touchAxisRef.current !== 'x') return;
+
+      setIsDragging(true);
+      const limit = heroWidth > 0 ? heroWidth * 0.9 : 320;
+      const nextOffset = Math.max(-limit, Math.min(limit, deltaX));
+      setDragOffsetX(nextOffset);
+    },
+    [heroWidth, items.length]
+  );
 
   const handleHeroTouchEnd = useCallback(
     (event: TouchEvent<HTMLDivElement>) => {
@@ -200,6 +238,19 @@ export default function TmdbHeroBanner({
       const deltaY = touch.clientY - start.y;
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
+
+      const isHorizontalGesture =
+        touchAxisRef.current === 'x' || (absX > absY && absX > 8);
+      touchAxisRef.current = null;
+
+      if (!isHorizontalGesture) {
+        setIsDragging(false);
+        setDragOffsetX(0);
+        return;
+      }
+
+      setIsDragging(false);
+      setDragOffsetX(0);
 
       if (absX < SWIPE_THRESHOLD_PX || absX <= absY) return;
 
@@ -357,12 +408,31 @@ export default function TmdbHeroBanner({
   }, [fetchHeroData]);
 
   useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+
+    const updateWidth = () => {
+      setHeroWidth(el.clientWidth || 0);
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (items.length <= 1) return;
+    if (isDragging) return;
     const timer = setInterval(() => {
       goToNext();
     }, 7000);
     return () => clearInterval(timer);
-  }, [goToNext, items.length]);
+  }, [goToNext, isDragging, items.length]);
 
   useEffect(() => {
     if (activeIndex >= items.length) {
@@ -371,6 +441,20 @@ export default function TmdbHeroBanner({
   }, [activeIndex, items.length]);
 
   const activeItem = useMemo(() => items[activeIndex], [items, activeIndex]);
+  const dragOffsetPercent =
+    heroWidth > 0 ? (dragOffsetX / heroWidth) * 100 : 0;
+
+  const getCircularOffset = useCallback(
+    (index: number): number => {
+      const total = items.length;
+      if (total <= 1) return 0;
+      let relative = index - activeIndex;
+      if (relative > total / 2) relative -= total;
+      if (relative < -total / 2) relative += total;
+      return relative;
+    },
+    [activeIndex, items.length]
+  );
 
   if (loading) {
     return (
@@ -406,19 +490,42 @@ export default function TmdbHeroBanner({
   return (
     <section className={fullWidthSectionClass}>
       <div
+        ref={heroRef}
         className='relative h-[78vh] overflow-hidden bg-slate-950 text-white md:h-screen'
         onTouchStart={handleHeroTouchStart}
+        onTouchMove={handleHeroTouchMove}
         onTouchEnd={handleHeroTouchEnd}
         onTouchCancel={clearTouchState}
         style={{ touchAction: 'pan-y' }}
       >
-        <Image
-          src={safeImageUrl(activeItem.backdrop)}
-          alt={activeItem.title}
-          fill
-          priority
-          className='object-cover object-center brightness-[0.32]'
-        />
+        <div className='absolute inset-0 overflow-hidden'>
+          {items.map((item, index) => {
+            const offset = getCircularOffset(index) * 100 + dragOffsetPercent;
+            const isCurrent = index === activeIndex;
+            return (
+              <div
+                key={`hero-bg-${item.id}`}
+                className={`absolute inset-0 ${
+                  isDragging
+                    ? 'transition-none'
+                    : 'transition-transform duration-300 ease-out'
+                }`}
+                style={{
+                  transform: `translate3d(${offset}%, 0, 0)`,
+                  zIndex: isCurrent ? 2 : 1,
+                }}
+              >
+                <Image
+                  src={safeImageUrl(item.backdrop)}
+                  alt={item.title}
+                  fill
+                  priority={isCurrent}
+                  className='object-cover object-center brightness-[0.32]'
+                />
+              </div>
+            );
+          })}
+        </div>
         <div className='absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent' />
         <div className='absolute inset-0 bg-gradient-to-r from-black/70 to-transparent' />
 

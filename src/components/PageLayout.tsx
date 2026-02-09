@@ -23,6 +23,7 @@ const PageLayout = ({
       <MobileNavController
         activePath={activePath}
         showBackButton={['/play'].includes(activePath)}
+        useHeroHeaderStyle={isHomePage || disableMobileTopPadding}
       />
 
       <div className='flex md:grid md:grid-cols-[auto_1fr] w-full min-h-screen md:min-h-auto'>
