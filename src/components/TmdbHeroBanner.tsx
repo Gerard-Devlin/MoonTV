@@ -498,7 +498,7 @@ export default function TmdbHeroBanner({
         onTouchCancel={clearTouchState}
         style={{ touchAction: 'pan-y' }}
       >
-        <div className='absolute inset-0 overflow-hidden'>
+        <div className='absolute inset-0 z-0 overflow-hidden'>
           {items.map((item, index) => {
             const offset = getCircularOffset(index) * 100 + dragOffsetPercent;
             const isCurrent = index === activeIndex;
@@ -512,7 +512,6 @@ export default function TmdbHeroBanner({
                 }`}
                 style={{
                   transform: `translate3d(${offset}%, 0, 0)`,
-                  zIndex: isCurrent ? 2 : 1,
                 }}
               >
                 <Image
@@ -526,10 +525,10 @@ export default function TmdbHeroBanner({
             );
           })}
         </div>
-        <div className='absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent' />
-        <div className='absolute inset-0 bg-gradient-to-r from-black/70 to-transparent' />
+        <div className='absolute inset-0 z-10 bg-gradient-to-t from-black/85 via-black/20 to-transparent' />
+        <div className='absolute inset-0 z-10 bg-gradient-to-r from-black/70 to-transparent' />
 
-        <div className='absolute bottom-0 left-0 hidden w-full p-4 md:block md:w-3/4 md:translate-y-4 md:px-8 md:pt-8 md:pb-0 lg:w-1/2 lg:translate-y-6 lg:px-12 lg:pt-12 lg:pb-1'>
+        <div className='absolute bottom-0 left-0 z-20 hidden w-full p-4 md:block md:w-3/4 md:translate-y-4 md:px-8 md:pt-8 md:pb-0 lg:w-1/2 lg:translate-y-6 lg:px-12 lg:pt-12 lg:pb-1'>
           <div className='space-y-4 rounded-lg p-2 md:p-3'>
             {activeItem.logo ? (
               <div className='relative h-16 w-full max-w-[560px] sm:h-20 md:h-24 lg:h-28'>
@@ -633,7 +632,7 @@ export default function TmdbHeroBanner({
           </div>
         </div>
 
-        <div className='absolute inset-x-0 bottom-0 z-10 px-4 pb-4 pt-20 md:hidden'>
+        <div className='absolute inset-x-0 bottom-0 z-20 px-4 pb-4 pt-20 md:hidden'>
           <div className='rounded-xl bg-black/35 p-3 backdrop-blur-sm'>
             <div className='flex gap-4'>
               <div className='relative aspect-[2/3] w-24 flex-shrink-0 overflow-hidden rounded-md border border-white/20'>
