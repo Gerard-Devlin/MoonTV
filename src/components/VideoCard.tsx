@@ -1,23 +1,14 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
-  CalendarDays,
   CheckCircle,
-  Clock3,
-  Globe2,
   Heart,
-  Info,
   Link,
-  Loader2,
-  Play,
   Star,
-  Users,
-  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 
 import {
   deleteFavorite,
@@ -31,6 +22,7 @@ import { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
+import TmdbDetailModal from '@/components/TmdbDetailModal';
 
 interface VideoCardProps {
   id?: string;
@@ -209,13 +201,6 @@ function normalizeMediaType(value?: string, episodes?: number): TmdbMediaType {
   if (value === 'movie') return 'movie';
   if (typeof episodes === 'number' && episodes > 1) return 'tv';
   return 'movie';
-}
-
-function formatRuntime(minutes: number | null): string {
-  if (!minutes || minutes <= 0) return '';
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`;
 }
 
 function pickPreferredCertification(byCountry: Map<string, string>): string {
@@ -552,15 +537,7 @@ export default function VideoCard({
     [actualTitle, actualYear, actualSearchType, actualEpisodes, actualPoster, rate]
   );
 
-  const safeImageUrl = useCallback((url: string): string => {
-    try {
-      return processImageUrl(url);
-    } catch {
-      return url;
-    }
-  }, []);
-
-  // 鑾峰彇鏀惰棌鐘舵€?
+  // 闁兼儳鍢茶ぐ鍥绩閹増顥戦柣妯垮煐閳?
   useEffect(() => {
     if (from === 'douban' || !actualSource || !actualId) return;
 
@@ -569,18 +546,18 @@ export default function VideoCard({
         const fav = await isFavorited(actualSource, actualId);
         setFavorited(fav);
       } catch (err) {
-        throw new Error('检查收藏状态失败');
+        throw new Error('Failed to check favorite status');
       }
     };
 
     fetchFavoriteStatus();
 
-    // 鐩戝惉鏀惰棌鐘舵€佹洿鏂颁簨浠?
+    // 闁烩晜鍨甸幆澶愬绩閹増顥戦柣妯垮煐閳ь兛鐒﹀ú鍧楀棘妫颁胶鐨戝ù?
     const storageKey = generateStorageKey(actualSource, actualId);
     const unsubscribe = subscribeToDataUpdates(
       'favoritesUpdated',
       (newFavorites: Record<string, any>) => {
-        // 妫€鏌ュ綋鍓嶉」鐩槸鍚﹀湪鏂扮殑鏀惰棌鍒楄〃涓?
+        // 婵☆偀鍋撻柡灞诲劚缂嶅宕滃澶堚偓宥夋儎椤旇姤笑闁告熬绠戝﹢顏堝棘閹殿喗鐣遍柡鈧幆鐗堫棏闁告帗顨夐妴鍐╃▔?
         const isNowFavorited = !!newFavorites[storageKey];
         setFavorited(isNowFavorited);
       }
@@ -596,11 +573,11 @@ export default function VideoCard({
       if (from === 'douban' || !actualSource || !actualId) return;
       try {
         if (favorited) {
-          // 濡傛灉宸叉敹钘忥紝鍒犻櫎鏀惰棌
+          // 濠碘€冲€归悘澶婎啅閸欏鏆柦妯洪獜缁辨繈宕氶悩缁樼彑闁衡偓閹増顥?
           await deleteFavorite(actualSource, actualId);
           setFavorited(false);
         } else {
-          // 濡傛灉鏈敹钘忥紝娣诲姞鏀惰棌
+          // 濠碘€冲€归悘澶愬嫉椤忓懏鏆柦妯洪獜缁辨繂菐鐠囨彃顫ｉ柡鈧幆鐗堫棏
           await saveFavorite(actualSource, actualId, {
             title: actualTitle,
             source_name: source_name || '',
@@ -612,7 +589,7 @@ export default function VideoCard({
           setFavorited(true);
         }
       } catch (err) {
-        throw new Error('切换收藏状态失败');
+        throw new Error('Failed to toggle favorite state');
       }
     },
     [
@@ -637,7 +614,7 @@ export default function VideoCard({
         await deletePlayRecord(actualSource, actualId);
         onDelete?.();
       } catch (err) {
-        throw new Error('鍒犻櫎鎾斁璁板綍澶辫触');
+        throw new Error('闁告帞濞€濞呭酣骞橀鐔告澒閻犱焦婢樼紞宥嗗緞鏉堫偉袝');
       }
     },
     [from, actualSource, actualId, onDelete]
@@ -814,11 +791,11 @@ export default function VideoCard({
         void handleCardClick();
       }}
     >
-      {/* 娴锋姤瀹瑰櫒 */}
+      {/* 婵炴挳鏀辨慨銈団偓鍦嚀濞?*/}
       <div className='relative aspect-[2/3] overflow-hidden rounded-lg'>
-        {/* 楠ㄦ灦灞?*/}
+        {/* 濡ょ姰鍔嶉悘锔句沪?*/}
         {!isLoading && <ImagePlaceholder aspectRatio='aspect-[2/3]' />}
-        {/* 鍥剧墖 */}
+        {/* 闁搞儱澧芥晶?*/}
         <Image
           src={processImageUrl(actualPoster)}
           alt={actualTitle}
@@ -828,7 +805,7 @@ export default function VideoCard({
           onLoadingComplete={() => setIsLoading(true)}
         />
 
-        {/* 鎮诞閬僵 */}
+        {/* 闁诡噮鍓氱拠鐐烘焼椤旀儳鍏?*/}
         <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100' />
 
         {(config.showHeart || config.showCheckCircle) && (
@@ -854,7 +831,7 @@ export default function VideoCard({
           </div>
         )}
 
-        {/* 徽章 */}
+        {/* 瀵扮晫鐝?*/}
         {config.showRating &&
           rate &&
           (hasDoubanId ? (
@@ -883,7 +860,7 @@ export default function VideoCard({
           </div>
         )}
 
-        {/* 豆瓣链接 */}
+        {/* 鐠炲棛鎽氶柧鐐复 */}
         {!config.showRating && config.showDoubanLink && hasDoubanId && (
           <a
             href={`https://movie.douban.com/subject/${actualDoubanId}`}
@@ -908,13 +885,13 @@ export default function VideoCard({
         </div>
       )}
 
-      {/* 鏍囬涓庢潵婧?*/}
+      {/* 闁哄秴娲。鑺ョ▔鎼淬垺闄嶆繝?*/}
       <div className='mt-2 text-center'>
         <div className='relative'>
           <span className='block text-sm font-semibold truncate text-gray-900 dark:text-gray-100 transition-colors duration-300 ease-in-out group-hover:text-blue-600 dark:group-hover:text-blue-400 peer'>
             {actualTitle}
           </span>
-          {/* 鑷畾涔?tooltip */}
+          {/* 闁煎浜滈悾鐐▕?tooltip */}
           <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 invisible peer-hover:opacity-100 peer-hover:visible transition-all duration-200 ease-out delay-100 whitespace-nowrap pointer-events-none'>
             {actualTitle}
             <div className='absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800'></div>
@@ -929,235 +906,20 @@ export default function VideoCard({
         )}
       </div>
 
-      {detailOpen && typeof document !== 'undefined' ? createPortal(
-        <div
-          className='fixed inset-0 z-[850] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            handleCloseDetail();
-          }}
-        >
-          <div
-            className='relative w-full max-w-4xl overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type='button'
-              onClick={(event) => {
-                event.stopPropagation();
-                handleCloseDetail();
-              }}
-              className='absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white/80 transition-colors hover:text-white'
-              aria-label='Close detail dialog'
-            >
-              <X size={18} />
-            </button>
-
-            <div className='absolute inset-0'>
-              {detailData?.backdrop ? (
-                <Image
-                  src={safeImageUrl(detailData.backdrop)}
-                  alt={detailData.title}
-                  fill
-                  className='object-cover opacity-30'
-                />
-              ) : null}
-              <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
-            </div>
-
-            <div className='relative max-h-[85vh] overflow-y-auto p-4 sm:p-6'>
-              {detailLoading ? (
-                <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-white/80'>
-                  <Loader2 className='h-7 w-7 animate-spin' />
-                  <p className='text-sm'>正在加载详情...</p>
-                </div>
-              ) : null}
-
-              {!detailLoading && detailError ? (
-                <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-center'>
-                  <p className='text-base font-medium text-white'>详情加载失败</p>
-                  <p className='text-sm text-white/70'>{detailError}</p>
-                  <button
-                    type='button'
-                    onClick={() => {
-                      void handleRetryDetail();
-                    }}
-                    className='mt-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20'
-                  >
-                    重试
-                  </button>
-                </div>
-              ) : null}
-
-              {!detailLoading && !detailError && detailData ? (
-                <div className='grid gap-6 md:grid-cols-[220px,1fr]'>
-                  <div className='mx-auto w-40 md:mx-0 md:w-full'>
-                    <div className='relative aspect-[2/3] overflow-hidden rounded-lg border border-white/20 shadow-xl'>
-                      {detailData.poster || detailData.backdrop ? (
-                        <Image
-                          src={safeImageUrl(detailData.poster || detailData.backdrop)}
-                          alt={detailData.title}
-                          fill
-                          className='object-cover'
-                        />
-                      ) : (
-                        <div className='flex h-full w-full items-center justify-center bg-white/10 text-xs text-white/60'>
-                          No Poster
-                        </div>
-                      )}
-                    </div>
-                    <p className='mt-2 truncate text-center text-xs text-white/60'>
-                      {detailData.title}
-                    </p>
-                  </div>
-
-                  <div className='space-y-4'>
-                    {detailData.logo ? (
-                      <div className='relative h-14 w-full max-w-[500px] sm:h-16'>
-                        <Image
-                          src={safeImageUrl(detailData.logo)}
-                          alt={`${detailData.title} logo`}
-                          fill
-                          className='object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
-                        />
-                      </div>
-                    ) : (
-                      <h3 className='text-2xl font-bold sm:text-3xl'>
-                        {detailData.title}
-                      </h3>
-                    )}
-
-                    <div className='flex flex-wrap items-center gap-3 text-sm text-white/90'>
-                      {detailData.score ? (
-                        <span className='inline-flex items-center gap-1'>
-                          <Star
-                            size={15}
-                            className='text-yellow-400'
-                            fill='currentColor'
-                          />
-                          <span className='font-semibold'>{detailData.score}</span>
-                          {detailData.voteCount > 0 ? (
-                            <span className='text-white/65'>
-                              ({detailData.voteCount})
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : null}
-
-                      {detailData.year ? (
-                        <span className='inline-flex items-center gap-1 text-white/80'>
-                          <CalendarDays size={14} />
-                          {detailData.year}
-                        </span>
-                      ) : null}
-
-                      {detailData.runtime ? (
-                        <span className='inline-flex items-center gap-1 text-white/80'>
-                          <Clock3 size={14} />
-                          {formatRuntime(detailData.runtime)}
-                        </span>
-                      ) : null}
-
-                      {detailData.mediaType === 'tv' &&
-                      detailData.seasons &&
-                      detailData.episodes ? (
-                        <span className='inline-flex items-center gap-1 text-white/80'>
-                          <Users size={14} />
-                          {detailData.seasons} Seasons / {detailData.episodes} Episodes
-                        </span>
-                      ) : null}
-
-                      {detailData.contentRating ? (
-                        <span className='rounded border border-white/35 px-1.5 py-0.5 text-[11px] font-medium text-white/95'>
-                          {detailData.contentRating}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {detailData.genres.length > 0 ? (
-                      <div className='flex flex-wrap gap-2'>
-                        {detailData.genres.map((genre) => (
-                          <span
-                            key={genre}
-                            className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90'
-                          >
-                            {genre}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <p className='text-sm leading-6 text-white/85 sm:text-base'>
-                      {detailData.overview}
-                    </p>
-
-                    <div className='flex flex-wrap items-center gap-4 text-xs text-white/70 sm:text-sm'>
-                      {detailData.language ? (
-                        <span className='inline-flex items-center gap-1'>
-                          <Globe2 size={14} />
-                          {detailData.language}
-                        </span>
-                      ) : null}
-                      {typeof detailData.popularity === 'number' ? (
-                        <span>Popularity: {detailData.popularity}</span>
-                      ) : null}
-                    </div>
-
-                    {detailData.cast.length > 0 ? (
-                      <div className='space-y-2'>
-                        <p className='text-sm font-semibold text-white/90'>主演</p>
-                        <div className='flex flex-wrap gap-2'>
-                          {detailData.cast.map((person) => (
-                            <span
-                              key={`${person.id}-${person.name}`}
-                              className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90'
-                            >
-                              {person.name}
-                              {person.character ? ` · ${person.character}` : ''}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className='flex flex-wrap gap-3 pt-1'>
-                      <button
-                        type='button'
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleCloseDetail();
-                          goToPlay();
-                        }}
-                        className='inline-flex items-center gap-2 rounded-lg border border-white/70 bg-white px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90'
-                      >
-                        <Play size={14} />
-                        立即播放
-                      </button>
-
-                      {detailData.trailerUrl ? (
-                        <a
-                          href={detailData.trailerUrl}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          onClick={(event) => event.stopPropagation()}
-                          className='inline-flex items-center gap-2 rounded-lg border border-white/35 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20'
-                        >
-                          <Info size={14} />
-                          预告片
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>,
-        document.body
-      ) : null}
+      <TmdbDetailModal
+        open={detailOpen}
+        loading={detailLoading}
+        error={detailError}
+        detail={detailData}
+        titleLogo={detailData?.logo}
+        onClose={handleCloseDetail}
+        onRetry={() => {
+          void handleRetryDetail();
+        }}
+        onPlay={goToPlay}
+      />
     </div>
   );
 }
+
 

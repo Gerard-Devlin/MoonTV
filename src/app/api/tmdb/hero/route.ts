@@ -36,6 +36,9 @@ interface TmdbHeroItem {
   score: string;
   backdrop: string;
   poster: string;
+  runtime: number | null;
+  seasons: number | null;
+  episodes: number | null;
   logo?: string;
 }
 
@@ -48,6 +51,19 @@ interface TmdbLogoItem {
 
 interface TmdbImagesResponse {
   logos?: TmdbLogoItem[];
+}
+
+interface TmdbRuntimeResponse {
+  runtime?: number;
+  episode_run_time?: number[];
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+}
+
+interface TmdbHeroMeta {
+  runtime: number | null;
+  seasons: number | null;
+  episodes: number | null;
 }
 
 function toYear(value?: string): string {
@@ -80,6 +96,9 @@ function mapHeroItem(item: TmdbTrendingItem): TmdbHeroItem | null {
     score: toScore(item.vote_average),
     backdrop: `${TMDB_IMAGE_BASE_URL}/original${backdropPath}`,
     poster: `${TMDB_IMAGE_BASE_URL}/w500${posterPath}`,
+    runtime: null,
+    seasons: null,
+    episodes: null,
   };
 }
 
@@ -131,6 +150,55 @@ async function fetchLogoForItem(
     return logoPath ? `${TMDB_IMAGE_BASE_URL}/w500${logoPath}` : '';
   } catch {
     return '';
+  }
+}
+
+async function fetchHeroMetaForItem(
+  mediaType: TmdbMediaType,
+  id: number,
+  apiKey: string,
+  signal: AbortSignal
+): Promise<TmdbHeroMeta> {
+  try {
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      language: 'zh-CN',
+    });
+
+    const response = await fetch(
+      `${TMDB_API_BASE_URL}/${mediaType}/${id}?${params.toString()}`,
+      { signal }
+    );
+    if (!response.ok) {
+      return {
+        runtime: null,
+        seasons: null,
+        episodes: null,
+      };
+    }
+
+    const data = (await response.json()) as TmdbRuntimeResponse;
+    const runtime =
+      mediaType === 'movie' ? data.runtime : data.episode_run_time?.[0];
+    const seasons = data.number_of_seasons;
+    const episodes = data.number_of_episodes;
+    return {
+      runtime: typeof runtime === 'number' && runtime > 0 ? runtime : null,
+      seasons:
+        mediaType === 'tv' && typeof seasons === 'number' && seasons > 0
+          ? seasons
+          : null,
+      episodes:
+        mediaType === 'tv' && typeof episodes === 'number' && episodes > 0
+          ? episodes
+          : null,
+    };
+  } catch {
+    return {
+      runtime: null,
+      seasons: null,
+      episodes: null,
+    };
   }
 }
 
@@ -187,14 +255,15 @@ export async function GET(request: Request) {
 
     const results = await Promise.all(
       baseResults.map(async (item) => {
-        const logo = await fetchLogoForItem(
-          item.mediaType,
-          item.id,
-          apiKey,
-          controller.signal
-        );
+        const [logo, meta] = await Promise.all([
+          fetchLogoForItem(item.mediaType, item.id, apiKey, controller.signal),
+          fetchHeroMetaForItem(item.mediaType, item.id, apiKey, controller.signal),
+        ]);
         return {
           ...item,
+          runtime: meta.runtime,
+          seasons: meta.seasons,
+          episodes: meta.episodes,
           logo: logo || undefined,
         };
       })

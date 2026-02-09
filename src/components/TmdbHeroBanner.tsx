@@ -33,6 +33,9 @@ interface TmdbHeroItem {
   score: string;
   backdrop: string;
   poster: string;
+  runtime: number | null;
+  seasons: number | null;
+  episodes: number | null;
   logo?: string;
 }
 
@@ -55,6 +58,19 @@ interface TmdbRawItem {
 
 interface TmdbRawResponse {
   results?: TmdbRawItem[];
+}
+
+interface TmdbRuntimeResponse {
+  runtime?: number;
+  episode_run_time?: number[];
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+}
+
+interface TmdbHeroMeta {
+  runtime: number | null;
+  seasons: number | null;
+  episodes: number | null;
 }
 
 interface TmdbLogoItem {
@@ -195,6 +211,9 @@ function mapRawItemToHero(item: TmdbRawItem): TmdbHeroItem | null {
     score: toScore(item.vote_average),
     backdrop: `${TMDB_IMAGE_BASE_URL}/original${backdropPath}`,
     poster: `${TMDB_IMAGE_BASE_URL}/w500${posterPath}`,
+    runtime: null,
+    seasons: null,
+    episodes: null,
   };
 }
 
@@ -504,6 +523,62 @@ export default function TmdbHeroBanner({
     []
   );
 
+  const fetchHeroMetaForItem = useCallback(
+    async (
+      mediaType: 'movie' | 'tv',
+      id: number,
+      signal?: AbortSignal
+    ): Promise<TmdbHeroMeta> => {
+      try {
+        if (!TMDB_CLIENT_API_KEY) {
+          return {
+            runtime: null,
+            seasons: null,
+            episodes: null,
+          };
+        }
+        const params = new URLSearchParams({
+          api_key: TMDB_CLIENT_API_KEY,
+          language: 'zh-CN',
+        });
+        const response = await fetch(
+          `${TMDB_API_BASE_URL}/${mediaType}/${id}?${params.toString()}`,
+          { signal }
+        );
+        if (!response.ok) {
+          return {
+            runtime: null,
+            seasons: null,
+            episodes: null,
+          };
+        }
+        const data = (await response.json()) as TmdbRuntimeResponse;
+        const runtime =
+          mediaType === 'movie' ? data.runtime : data.episode_run_time?.[0];
+        const seasons = data.number_of_seasons;
+        const episodes = data.number_of_episodes;
+        return {
+          runtime: typeof runtime === 'number' && runtime > 0 ? runtime : null,
+          seasons:
+            mediaType === 'tv' && typeof seasons === 'number' && seasons > 0
+              ? seasons
+              : null,
+          episodes:
+            mediaType === 'tv' && typeof episodes === 'number' && episodes > 0
+              ? episodes
+              : null,
+        };
+      } catch {
+        return {
+          runtime: null,
+          seasons: null,
+          episodes: null,
+        };
+      }
+    },
+    []
+  );
+
   const fetchDirectFromTmdb = useCallback(async (signal?: AbortSignal) => {
     if (!TMDB_CLIENT_API_KEY) return [];
 
@@ -533,16 +608,22 @@ export default function TmdbHeroBanner({
 
     const itemsWithLogo = await Promise.all(
       baseItems.map(async (item) => {
-        const logo = await fetchLogoForItem(item.mediaType, item.id, signal);
+        const [logo, meta] = await Promise.all([
+          fetchLogoForItem(item.mediaType, item.id, signal),
+          fetchHeroMetaForItem(item.mediaType, item.id, signal),
+        ]);
         return {
           ...item,
+          runtime: meta.runtime,
+          seasons: meta.seasons,
+          episodes: meta.episodes,
           logo: logo || undefined,
         };
       })
     );
     const logoOnlyItems = itemsWithLogo.filter((item) => Boolean(item.logo));
     return logoOnlyItems.length > 0 ? logoOnlyItems : itemsWithLogo;
-  }, [fetchLogoForItem, mediaFilter]);
+  }, [fetchHeroMetaForItem, fetchLogoForItem, mediaFilter]);
 
   const safeImageUrl = useCallback((url: string): string => {
     try {
@@ -883,6 +964,20 @@ export default function TmdbHeroBanner({
               <span className='rounded border border-white/30 px-1.5 py-0.5 text-[11px] font-medium uppercase text-white/90'>
                 {activeItem.mediaType === 'movie' ? '电影' : '剧集'}
               </span>
+              {activeItem.mediaType === 'movie' && activeItem.runtime ? (
+                <span className='inline-flex items-center gap-1 text-white/80'>
+                  <Clock3 size={14} />
+                  {formatRuntime(activeItem.runtime)}
+                </span>
+              ) : null}
+              {activeItem.mediaType === 'tv' &&
+              activeItem.seasons &&
+              activeItem.episodes ? (
+                <span className='inline-flex items-center gap-1 text-white/80'>
+                  <Users size={14} />
+                  {activeItem.seasons} Seasons / {activeItem.episodes} Episodes
+                </span>
+              ) : null}
             </div>
 
             <p className='max-w-xl text-sm leading-6 text-white/90 line-clamp-2 md:line-clamp-3 md:text-base'>
@@ -995,6 +1090,20 @@ export default function TmdbHeroBanner({
                   <span className='rounded border border-white/30 px-1 py-0.5 uppercase'>
                     {activeItem.mediaType === 'movie' ? '电影' : '剧集'}
                   </span>
+                  {activeItem.mediaType === 'movie' && activeItem.runtime ? (
+                    <span className='inline-flex items-center gap-1 text-white/80'>
+                      <Clock3 size={12} />
+                      {formatRuntime(activeItem.runtime)}
+                    </span>
+                  ) : null}
+                  {activeItem.mediaType === 'tv' &&
+                  activeItem.seasons &&
+                  activeItem.episodes ? (
+                    <span className='inline-flex items-center gap-1 text-white/80'>
+                      <Users size={12} />
+                      {activeItem.seasons}S / {activeItem.episodes}E
+                    </span>
+                  ) : null}
                 </div>
 
                 <p className='mt-2 line-clamp-3 text-xs leading-relaxed text-white/90'>
@@ -1096,26 +1205,31 @@ export default function TmdbHeroBanner({
 
                 {!detailLoading && !detailError && detailData && (
                   <div className='grid gap-6 md:grid-cols-[220px,1fr]'>
-                    <div className='relative mx-auto aspect-[2/3] w-40 overflow-hidden rounded-lg border border-white/20 shadow-xl md:mx-0 md:w-full'>
-                      {detailData.poster || detailData.backdrop ? (
-                        <Image
-                          src={safeImageUrl(
-                            detailData.poster || detailData.backdrop
-                          )}
-                          alt={detailData.title}
-                          fill
-                          className='object-cover'
-                        />
-                      ) : (
-                        <div className='flex h-full w-full items-center justify-center bg-white/10 text-xs text-white/60'>
-                          No Poster
-                        </div>
-                      )}
+                    <div className='mx-auto w-40 md:mx-0 md:w-full'>
+                      <div className='relative aspect-[2/3] overflow-hidden rounded-lg border border-white/20 shadow-xl'>
+                        {detailData.poster || detailData.backdrop ? (
+                          <Image
+                            src={safeImageUrl(
+                              detailData.poster || detailData.backdrop
+                            )}
+                            alt={detailData.title}
+                            fill
+                            className='object-cover'
+                          />
+                        ) : (
+                          <div className='flex h-full w-full items-center justify-center bg-white/10 text-xs text-white/60'>
+                            No Poster
+                          </div>
+                        )}
+                      </div>
+                      <p className='mt-2 truncate text-center text-xs text-white/60'>
+                        {detailData.title}
+                      </p>
                     </div>
 
                     <div className='space-y-4'>
                       {detailItem?.logo ? (
-                        <div className='relative h-12 w-full max-w-[460px] sm:h-16'>
+                        <div className='relative h-16 w-full max-w-[560px] sm:h-24'>
                           <Image
                             src={safeImageUrl(detailItem.logo)}
                             alt={`${detailData.title} logo`}
@@ -1237,7 +1351,7 @@ export default function TmdbHeroBanner({
                               router.push(buildPlayUrl(detailItem));
                             }
                           }}
-                          className='inline-flex items-center gap-2 rounded-lg border border-white/35 bg-white/20 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/30'
+                          className='inline-flex items-center gap-2 rounded-lg border border-white/70 bg-white px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90'
                         >
                           <Play size={14} />
                           立即播放
