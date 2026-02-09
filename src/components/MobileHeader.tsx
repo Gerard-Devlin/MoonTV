@@ -1,8 +1,8 @@
 'use client';
 
+import { Menu, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Menu, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { BackButton } from './BackButton';
@@ -13,12 +13,14 @@ interface MobileHeaderProps {
   showBackButton?: boolean;
   isMenuOpen?: boolean;
   onMenuToggle?: () => void;
+  isHomePage?: boolean;
 }
 
 const MobileHeader = ({
   showBackButton = false,
   isMenuOpen = false,
   onMenuToggle,
+  isHomePage = false,
 }: MobileHeaderProps) => {
   const [isHidden, setIsHidden] = useState(false);
   const lastScrollY = useRef(0);
@@ -86,7 +88,7 @@ const MobileHeader = ({
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      document.removeEventListener('scroll', handleScroll, true as any);
+      document.removeEventListener('scroll', handleScroll, true);
       mainEl?.removeEventListener('scroll', handleScroll);
     };
   }, [isMenuOpen]);
@@ -100,7 +102,13 @@ const MobileHeader = ({
       }`}
       style={{ top: 0, paddingTop: 'env(safe-area-inset-top)' }}
     >
-      <div className='relative mx-auto mt-3 w-[calc(100%-1.5rem)] max-w-[720px] rounded-3xl bg-white/70 backdrop-blur-xl border border-gray-200/60 shadow-sm dark:bg-gray-900/70 dark:border-gray-700/60'>
+      <div
+        className={`relative mx-auto w-[calc(100%-1.5rem)] max-w-[720px] rounded-3xl backdrop-blur-xl border transition-colors ${
+          isHomePage
+            ? 'mt-2 bg-white/30 border-white/30 shadow-[0_8px_24px_rgba(0,0,0,0.18)] dark:bg-black/20 dark:border-white/20'
+            : 'mt-3 bg-white/70 border-gray-200/60 shadow-sm dark:bg-gray-900/70 dark:border-gray-700/60'
+        }`}
+      >
         <div className='relative h-12 flex items-center justify-between px-4'>
           <div className='flex items-center gap-2'>
             {onMenuToggle && (

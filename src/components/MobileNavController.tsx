@@ -28,6 +28,7 @@ const MobileNavController = ({
         showBackButton={showBackButton}
         isMenuOpen={isOpen}
         onMenuToggle={handleToggle}
+        isHomePage={activePath === '/'}
       />
       <MobileBottomNav
         activePath={activePath}

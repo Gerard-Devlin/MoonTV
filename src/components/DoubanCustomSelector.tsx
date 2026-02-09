@@ -378,7 +378,7 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
                 buttonRefs.current[index] = el;
               }}
               onClick={() => onChange(option.value)}
-              className={`relative z-10 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap inline-flex items-center ${
+              className={`relative z-10 px-3 py-1 sm:px-4 sm:py-2 text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap inline-flex items-center ${
                 isPrimary
                   ? ''
                   : 'border border-gray-300 dark:border-gray-600 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-600/50'

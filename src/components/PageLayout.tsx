@@ -11,6 +11,8 @@ interface PageLayoutProps {
 }
 
 const PageLayout = ({ children, activePath = '/' }: PageLayoutProps) => {
+  const isHomePage = activePath === '/';
+
   return (
     <div className='w-full min-h-screen'>
       <MobileNavController
@@ -36,7 +38,9 @@ const PageLayout = ({ children, activePath = '/' }: PageLayoutProps) => {
           </div>
 
           <main
-            className='flex-1 md:min-h-0 pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-0'
+            className={`flex-1 md:min-h-0 ${
+              isHomePage ? 'pt-0 md:pt-0' : 'pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-0'
+            }`}
             style={{
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}

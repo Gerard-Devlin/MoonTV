@@ -3,6 +3,7 @@
 'use client';
 
 import { Film, HeartPulse, Home, PartyPopper, Search, Tv } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -80,14 +81,24 @@ const MobileBottomNav = ({
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
-          paddingTop: 'calc(env(safe-area-inset-top) + 3.5rem)',
+          paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
+        <div className='flex justify-center pt-3'>
+          <Link
+            href='/'
+            onClick={onClose}
+            className='inline-flex items-center justify-center p-1 transition-opacity hover:opacity-85'
+            aria-label='返回首页'
+          >
+            <Image src='/logo.png' alt='logo' width={30} height={30} />
+          </Link>
+        </div>
         <ul className='flex flex-col gap-1 px-3 py-4'>
-          {navItems.map((item) => {
+          {navItems.flatMap((item) => {
             const active = isActive(item.href);
-            return (
+            const navItem = (
               <li key={item.href}>
                 <Link
                   href={item.href}
@@ -109,6 +120,18 @@ const MobileBottomNav = ({
                 </Link>
               </li>
             );
+
+            if (item.href === '/search') {
+              return [
+                navItem,
+                <li
+                  key='mobile-nav-divider-after-search'
+                  className='-mx-2 my-2 border-t border-gray-200/80 dark:border-gray-700/70'
+                />,
+              ];
+            }
+
+            return [navItem];
           })}
         </ul>
       </nav>
