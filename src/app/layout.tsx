@@ -7,6 +7,7 @@ import './globals.css';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 import { getConfig } from '@/lib/config';
+import { DEFAULT_ANNOUNCEMENT } from '@/lib/legal';
 import RuntimeConfig from '@/lib/runtime';
 
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
@@ -45,8 +46,7 @@ export default async function RootLayout({
 }) {
   let siteName = process.env.SITE_NAME || 'MoonTV';
   let announcement =
-    process.env.ANNOUNCEMENT ||
-    '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。';
+    process.env.ANNOUNCEMENT || DEFAULT_ANNOUNCEMENT;
   let enableRegister = process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true';
   let imageProxy = process.env.NEXT_PUBLIC_IMAGE_PROXY || '';
   let doubanProxy = process.env.NEXT_PUBLIC_DOUBAN_PROXY || '';

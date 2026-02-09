@@ -2,11 +2,12 @@
 
 import { createContext, ReactNode, useContext } from 'react';
 
+import { DEFAULT_ANNOUNCEMENT } from '@/lib/legal';
+
 const SiteContext = createContext<{ siteName: string; announcement?: string }>({
   // 默认值
   siteName: 'MoonTV',
-  announcement:
-    '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。',
+  announcement: DEFAULT_ANNOUNCEMENT,
 });
 
 export const useSite = () => useContext(SiteContext);

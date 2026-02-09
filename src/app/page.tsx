@@ -33,6 +33,71 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+const ANNOUNCEMENT_HIGHLIGHTS = [
+  '仅提供影视信息检索、索引与跳转服务',
+  '不上传、不存储、不制作、不编辑、不传播任何视频文件或流媒体内容',
+  '不作任何明示或默示保证',
+  '不承担由此产生的任何直接或间接责任',
+  '用户应自行判断并承担访问、使用第三方内容的一切风险与法律责任',
+  '若权利人认为相关内容涉嫌侵权或违法',
+  '继续访问或使用本站，即视为您已阅读、理解并同意本声明全部条款',
+];
+
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function splitAnnouncementParagraphs(text: string) {
+  const normalized = text
+    .replace(/【?免责声明】?/g, '')
+    .replace(/免责声明/g, '')
+    .trim();
+
+  if (!normalized) return [];
+
+  if (normalized.includes('\n')) {
+    return normalized
+      .split(/\n{2,}|\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  const sentences = normalized
+    .split(/(?<=。)/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (sentences.length <= 2) return [normalized];
+
+  const paragraphs: string[] = [];
+  for (let i = 0; i < sentences.length; i += 2) {
+    paragraphs.push(sentences.slice(i, i + 2).join(''));
+  }
+  return paragraphs;
+}
+
+function renderHighlightedText(text: string) {
+  const pattern = new RegExp(
+    `(${ANNOUNCEMENT_HIGHLIGHTS.map(escapeRegExp).join('|')})`,
+    'g'
+  );
+
+  return text.split(pattern).map((part, index) => {
+    if (!part) return null;
+    if (ANNOUNCEMENT_HIGHLIGHTS.includes(part)) {
+      return (
+        <strong
+          key={`highlight-${index}`}
+          className='font-semibold text-zinc-100'
+        >
+          {part}
+        </strong>
+      );
+    }
+    return <span key={`text-${index}`}>{part}</span>;
+  });
+}
+
 function HomeClient() {
   const [activeTab, setActiveTab] = useState<'home' | 'favorites'>('home');
   const [hotMovies, setHotMovies] = useState<DoubanItem[]>([]);
@@ -379,22 +444,28 @@ function HomeClient() {
             if (!open) handleCloseAnnouncement(announcement);
           }}
         >
-          <AlertDialogContent className='w-[min(92vw,28rem)] rounded-2xl border-slate-200 bg-white/95 p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-950/95'>
+          <AlertDialogContent className='max-h-[80vh] w-[min(92vw,28rem)] overflow-y-auto rounded-2xl border-zinc-800 bg-zinc-950 p-5 text-zinc-100 shadow-2xl'>
             <AlertDialogHeader className='space-y-3'>
               <div className='flex items-center gap-3'>
                 <ShieldAlert className='h-6 w-6 text-red-500' />
-                <AlertDialogTitle className='text-base text-slate-900 dark:text-slate-100'>
-                  提示
+                <AlertDialogTitle className='text-xl text-zinc-100'>
+                  免责申明
                 </AlertDialogTitle>
               </div>
-              <AlertDialogDescription className='text-sm leading-6 text-slate-600 dark:text-slate-300'>
-                {announcement}
+              <AlertDialogDescription className='space-y-3 text-sm leading-6 text-zinc-300'>
+                {splitAnnouncementParagraphs(announcement).map(
+                  (paragraph, index) => (
+                    <p key={`announcement-${index}`}>
+                      {renderHighlightedText(paragraph)}
+                    </p>
+                  )
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogAction
                 onClick={() => handleCloseAnnouncement(announcement)}
-                className='w-full rounded-lg bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200'
+                className='w-full rounded-lg bg-zinc-100 text-zinc-900 hover:bg-zinc-200 focus-visible:ring-zinc-600'
               >
                 我知道了
               </AlertDialogAction>
