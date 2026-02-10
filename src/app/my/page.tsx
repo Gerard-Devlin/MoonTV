@@ -1,7 +1,7 @@
 'use client';
 
 import { Heart, History, Search, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 
 import type { Favorite, PlayRecord } from '@/lib/db.client';
 import {
@@ -57,7 +57,7 @@ function getProgressPercent(record: PlayRecord): number {
   return (record.play_time / record.total_time) * 100;
 }
 
-export default function MyPage() {
+function MyPageClient() {
   const [activeTab, setActiveTab] = useState<'play' | 'favorite'>('play');
   const [playRecords, setPlayRecords] = useState<PlayRecordItem[]>([]);
   const [favoriteItems, setFavoriteItems] = useState<FavoriteItem[]>([]);
@@ -578,5 +578,13 @@ export default function MyPage() {
         </AlertDialogContent>
       </AlertDialog>
     </PageLayout>
+  );
+}
+
+export default function MyPage() {
+  return (
+    <Suspense>
+      <MyPageClient />
+    </Suspense>
   );
 }
