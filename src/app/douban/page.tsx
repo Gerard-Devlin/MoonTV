@@ -2,6 +2,7 @@
 
 import {
   CalendarRange,
+  ChevronDown,
   Clock3,
   Film,
   Languages,
@@ -58,26 +59,45 @@ const MAX_RUNTIME_MINUTES = 360;
 const MIN_RATING = 0;
 const MAX_RATING = 10;
 
-const GENRE_OPTIONS: GenreOption[] = [
-  { id: 12, label: '冒险' },
-  { id: 18, label: '剧情' },
-  { id: 28, label: '动作' },
-  { id: 16, label: '动画' },
-  { id: 36, label: '历史' },
-  { id: 35, label: '喜剧' },
-  { id: 14, label: '奇幻' },
-  { id: 10751, label: '家庭' },
-  { id: 27, label: '恐怖' },
-  { id: 9648, label: '悬疑' },
-  { id: 53, label: '惊悚' },
-  { id: 10752, label: '战争' },
-  { id: 10749, label: '爱情' },
-  { id: 80, label: '犯罪' },
-  { id: 10770, label: '电视电影' },
-  { id: 878, label: '科幻' },
-  { id: 99, label: '纪录' },
-  { id: 37, label: '西部' },
-  { id: 10402, label: '音乐' },
+const MOVIE_GENRE_OPTIONS: GenreOption[] = [
+  { id: 12, label: '\u5192\u9669' },
+  { id: 18, label: '\u5267\u60c5' },
+  { id: 28, label: '\u52a8\u4f5c' },
+  { id: 16, label: '\u52a8\u753b' },
+  { id: 36, label: '\u5386\u53f2' },
+  { id: 35, label: '\u559c\u5267' },
+  { id: 14, label: '\u5947\u5e7b' },
+  { id: 10751, label: '\u5bb6\u5ead' },
+  { id: 27, label: '\u6050\u6016' },
+  { id: 9648, label: '\u60ac\u7591' },
+  { id: 53, label: '\u60ca\u609a' },
+  { id: 10752, label: '\u6218\u4e89' },
+  { id: 10749, label: '\u7231\u60c5' },
+  { id: 80, label: '\u72af\u7f6a' },
+  { id: 10770, label: '\u7535\u89c6\u7535\u5f71' },
+  { id: 878, label: '\u79d1\u5e7b' },
+  { id: 99, label: '\u7eaa\u5f55' },
+  { id: 37, label: '\u897f\u90e8' },
+  { id: 10402, label: '\u97f3\u4e50' },
+];
+
+const TV_GENRE_OPTIONS: GenreOption[] = [
+  { id: 10765, label: 'Sci-Fi & Fantasy' },
+  { id: 10768, label: 'War & Politics' },
+  { id: 10762, label: '\u513f\u7ae5' },
+  { id: 18, label: '\u5267\u60c5' },
+  { id: 10759, label: '\u52a8\u4f5c\u5192\u9669' },
+  { id: 16, label: '\u52a8\u753b' },
+  { id: 35, label: '\u559c\u5267' },
+  { id: 10751, label: '\u5bb6\u5ead' },
+  { id: 9648, label: '\u60ac\u7591' },
+  { id: 10763, label: '\u65b0\u95fb' },
+  { id: 80, label: '\u72af\u7f6a' },
+  { id: 10764, label: '\u771f\u4eba\u79c0' },
+  { id: 99, label: '\u7eaa\u5f55' },
+  { id: 10766, label: '\u80a5\u7682\u5267' },
+  { id: 10767, label: '\u8131\u53e3\u79c0' },
+  { id: 37, label: '\u897f\u90e8' },
 ];
 
 const LANGUAGE_OPTIONS = [
@@ -138,6 +158,7 @@ function DoubanPageClient() {
   const isTmdbType = type === 'movie' || type === 'tv';
 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [items, setItems] = useState<DoubanItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -177,6 +198,7 @@ function DoubanPageClient() {
 
   useEffect(() => {
     setFilters(DEFAULT_FILTERS);
+    setShowAdvancedFilters(false);
     if (type === 'show') {
       setShowSelection('show');
     }
@@ -213,6 +235,10 @@ function DoubanPageClient() {
   const mergedGenres = useMemo(
     () => Array.from(new Set([...filters.selectedGenres])),
     [filters.selectedGenres]
+  );
+  const genreOptions = useMemo(
+    () => (media === 'tv' ? TV_GENRE_OPTIONS : MOVIE_GENRE_OPTIONS),
+    [media]
   );
 
   const queryString = useMemo(() => {
@@ -660,10 +686,24 @@ function DoubanPageClient() {
               ) : (
                 <>
                   <div className='mb-4 flex items-center justify-between'>
-                    <div className='flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-200'>
+                    <button
+                      type='button'
+                      onClick={() => setShowAdvancedFilters((prev) => !prev)}
+                      className='inline-flex items-center gap-2 text-lg font-semibold text-gray-700 transition hover:text-gray-900 dark:text-gray-200 dark:hover:text-gray-100'
+                    >
                       <ListFilter className='h-5 w-5' />
-                      高级筛选
-                    </div>
+                      <span>{'\u7b5b\u9009'}</span>
+                      <span className='text-xs font-normal text-gray-500 dark:text-gray-400'>
+                        {showAdvancedFilters
+                          ? '\u70b9\u51fb\u6536\u8d77'
+                          : '\u70b9\u51fb\u5c55\u5f00'}
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          showAdvancedFilters ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
                     <button
                       type='button'
                       onClick={() => setFilters(DEFAULT_FILTERS)}
@@ -743,7 +783,7 @@ function DoubanPageClient() {
                         类型
                       </div>
                       <div className='flex flex-wrap gap-2'>
-                        {GENRE_OPTIONS.map((genre) => {
+                        {genreOptions.map((genre) => {
                           const active = filters.selectedGenres.includes(
                             genre.id
                           );
@@ -766,7 +806,7 @@ function DoubanPageClient() {
                       </div>
                     </div>
 
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                    <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <Languages className='h-4 w-4' />
                         语言
@@ -792,7 +832,7 @@ function DoubanPageClient() {
                       </select>
                     </div>
 
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                    <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <Star className='h-4 w-4' />
                         用户评分
@@ -854,7 +894,7 @@ function DoubanPageClient() {
                       </div>
                     </div>
 
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                    <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <UsersRound className='h-4 w-4' />
                         最少人数投票
@@ -875,7 +915,7 @@ function DoubanPageClient() {
                       />
                     </div>
 
-                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                    <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <Clock3 className='h-4 w-4' />
                         时长

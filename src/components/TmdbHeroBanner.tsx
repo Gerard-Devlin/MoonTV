@@ -1029,14 +1029,14 @@ export default function TmdbHeroBanner({
                   alt={item.title}
                   fill
                   priority={isCurrent}
-                  className='object-cover object-center brightness-[0.32]'
+                  className='object-cover object-center brightness-[0.42]'
                 />
               </div>
             );
           })}
         </div>
-        <div className='absolute inset-0 z-10 bg-gradient-to-t from-black/85 via-black/20 to-transparent' />
-        <div className='absolute inset-0 z-10 bg-gradient-to-r from-black/70 to-transparent' />
+        <div className='absolute inset-0 z-10 bg-gradient-to-t from-black/65 via-black/20 to-transparent' />
+        <div className='absolute inset-0 z-10 bg-gradient-to-r from-black/45 to-transparent' />
 
         <div className='absolute bottom-0 left-0 z-20 hidden w-full p-4 md:block md:w-3/4 md:translate-y-4 md:px-8 md:pt-8 md:pb-0 lg:w-1/2 lg:translate-y-6 lg:px-12 lg:pt-12 lg:pb-1'>
           <div className='space-y-4 rounded-lg p-2 md:p-3'>
