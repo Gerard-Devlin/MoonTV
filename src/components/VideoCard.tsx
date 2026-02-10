@@ -363,6 +363,31 @@ async function fetchTmdbDetailByTitle(input: {
   poster?: string;
   score?: string;
 }): Promise<TmdbCardDetail> {
+  const routeParams = new URLSearchParams({
+    title: input.title,
+    type: input.mediaType,
+  });
+  if (input.year) {
+    routeParams.set('year', input.year);
+  }
+  if (input.poster) {
+    routeParams.set('poster', input.poster);
+  }
+  if (input.score) {
+    routeParams.set('score', input.score);
+  }
+
+  try {
+    const routeResponse = await fetch(
+      `/api/tmdb/detail?${routeParams.toString()}`
+    );
+    if (routeResponse.ok) {
+      return (await routeResponse.json()) as TmdbCardDetail;
+    }
+  } catch {
+    // Fallback to direct TMDB calls below.
+  }
+
   const resolved = await resolveTmdbTargetFromTitle(
     input.title,
     input.year,

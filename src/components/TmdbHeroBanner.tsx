@@ -691,9 +691,7 @@ export default function TmdbHeroBanner({
         id: String(item.id),
         mediaType: item.mediaType,
       });
-      const response = await fetch(`/api/tmdb/detail?${params.toString()}`, {
-        cache: 'no-store',
-      });
+      const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`TMDB detail request failed: ${response.status}`);
       }
@@ -728,16 +726,16 @@ export default function TmdbHeroBanner({
     try {
       setLoading(true);
       setError(null);
-      const params = new URLSearchParams({
-        ts: Date.now().toString(),
-      });
+      const params = new URLSearchParams();
       if (mediaFilter !== 'all') {
         params.set('mediaType', mediaFilter);
       }
-      const response = await fetch(`/api/tmdb/hero?${params.toString()}`, {
-        signal,
-        cache: 'no-store',
-      });
+      const response = await fetch(
+        `/api/tmdb/hero${params.toString() ? `?${params.toString()}` : ''}`,
+        {
+          signal,
+        }
+      );
       if (!response.ok) {
         const directItems = await fetchDirectFromTmdb(signal);
         const limitedItems = directItems.slice(0, HERO_ITEM_LIMIT);

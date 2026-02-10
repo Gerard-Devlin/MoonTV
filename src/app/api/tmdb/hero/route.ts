@@ -6,6 +6,7 @@ const DEFAULT_TMDB_API_KEY = '45bf9a17a758ffdaf0193182c8f42625';
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 const HERO_CACHE_SECONDS = 300;
+const HERO_CACHE_MAX_ENTRIES = 8;
 
 type TmdbMediaType = 'movie' | 'tv';
 type HeroMediaFilter = 'all' | TmdbMediaType;
@@ -65,6 +66,19 @@ interface TmdbHeroMeta {
   seasons: number | null;
   episodes: number | null;
 }
+
+interface TmdbHeroCacheEntry {
+  expiresAt: number;
+  results: TmdbHeroItem[];
+}
+
+const globalWithTmdbHeroCache = globalThis as typeof globalThis & {
+  __tmdbHeroCache?: Map<string, TmdbHeroCacheEntry>;
+};
+
+const tmdbHeroCache =
+  globalWithTmdbHeroCache.__tmdbHeroCache ||
+  (globalWithTmdbHeroCache.__tmdbHeroCache = new Map());
 
 function toYear(value?: string): string {
   if (!value) return '';
@@ -207,9 +221,41 @@ function normalizeMediaFilter(value: string | null): HeroMediaFilter {
   return 'all';
 }
 
+function buildCacheHeaders(): HeadersInit {
+  return {
+    'Cache-Control': `public, max-age=${HERO_CACHE_SECONDS}, s-maxage=${HERO_CACHE_SECONDS}, stale-while-revalidate=60`,
+    'CDN-Cache-Control': `public, s-maxage=${HERO_CACHE_SECONDS}, stale-while-revalidate=60`,
+    'Vercel-CDN-Cache-Control': `public, s-maxage=${HERO_CACHE_SECONDS}, stale-while-revalidate=60`,
+  };
+}
+
+function readHeroCache(key: string): TmdbHeroItem[] | null {
+  const hit = tmdbHeroCache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt <= Date.now()) {
+    tmdbHeroCache.delete(key);
+    return null;
+  }
+  return hit.results;
+}
+
+function writeHeroCache(key: string, results: TmdbHeroItem[]): void {
+  tmdbHeroCache.set(key, {
+    results,
+    expiresAt: Date.now() + HERO_CACHE_SECONDS * 1000,
+  });
+
+  if (tmdbHeroCache.size <= HERO_CACHE_MAX_ENTRIES) return;
+  const oldestKey = tmdbHeroCache.keys().next().value;
+  if (oldestKey) {
+    tmdbHeroCache.delete(oldestKey);
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mediaFilter = normalizeMediaFilter(searchParams.get('mediaType'));
+  const cacheKey = `hero:${mediaFilter}`;
 
   const apiKey =
     process.env.TMDB_API_KEY ||
@@ -218,6 +264,16 @@ export async function GET(request: Request) {
 
   if (!apiKey) {
     return NextResponse.json({ results: [] }, { status: 200 });
+  }
+
+  const cacheHit = readHeroCache(cacheKey);
+  if (cacheHit) {
+    return NextResponse.json(
+      { results: cacheHit },
+      {
+        headers: buildCacheHeaders(),
+      }
+    );
   }
 
   const controller = new AbortController();
@@ -269,14 +325,12 @@ export async function GET(request: Request) {
       })
     );
 
+    writeHeroCache(cacheKey, results);
+
     return NextResponse.json(
       { results },
       {
-        headers: {
-          'Cache-Control': `public, max-age=${HERO_CACHE_SECONDS}, s-maxage=${HERO_CACHE_SECONDS}`,
-          'CDN-Cache-Control': `public, s-maxage=${HERO_CACHE_SECONDS}`,
-          'Vercel-CDN-Cache-Control': `public, s-maxage=${HERO_CACHE_SECONDS}`,
-        },
+        headers: buildCacheHeaders(),
       }
     );
   } catch {
