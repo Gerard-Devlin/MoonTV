@@ -1,4 +1,4 @@
-﻿/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
   CheckCircle,
@@ -23,6 +23,16 @@ import { processImageUrl } from '@/lib/utils';
 
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
 import TmdbDetailModal from '@/components/TmdbDetailModal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface VideoCardProps {
   id?: string;
@@ -492,6 +502,11 @@ export default function VideoCard({
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailData, setDetailData] = useState<TmdbCardDetail | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [favoriteDeleteDialogOpen, setFavoriteDeleteDialogOpen] =
+    useState(false);
+  const [favoriteDeleteLoading, setFavoriteDeleteLoading] = useState(false);
   const detailCacheRef = useRef<Record<string, TmdbCardDetail>>({});
   const detailRequestIdRef = useRef(0);
   const suppressCardClickUntilRef = useRef(0);
@@ -598,6 +613,10 @@ export default function VideoCard({
       if (from === 'douban' || !actualSource || !actualId) return;
       try {
         if (favorited) {
+          if (from === 'favorite') {
+            setFavoriteDeleteDialogOpen(true);
+            return;
+          }
           // 濠碘€冲€归悘澶婎啅閸欏鏆柦妯洪獜缁辨繈宕氶悩缁樼彑闁衡偓閹増顥?
           await deleteFavorite(actualSource, actualId);
           setFavorited(false);
@@ -630,20 +649,41 @@ export default function VideoCard({
     ]
   );
 
-  const handleDeleteRecord = useCallback(
-    async (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (from !== 'playrecord' || !actualSource || !actualId) return;
-      try {
-        await deletePlayRecord(actualSource, actualId);
-        onDelete?.();
-      } catch (err) {
-        throw new Error('闁告帞濞€濞呭酣骞橀鐔告澒閻犱焦婢樼紞宥嗗緞鏉堫偉袝');
-      }
-    },
-    [from, actualSource, actualId, onDelete]
-  );
+  const handleConfirmDeleteFavorite = useCallback(async () => {
+    if (!actualSource || !actualId) return;
+    setFavoriteDeleteLoading(true);
+    try {
+      await deleteFavorite(actualSource, actualId);
+      setFavorited(false);
+      onDelete?.();
+      setFavoriteDeleteDialogOpen(false);
+    } catch {
+      throw new Error('Failed to delete favorite');
+    } finally {
+      setFavoriteDeleteLoading(false);
+    }
+  }, [actualSource, actualId, onDelete]);
+
+  const handleOpenDeleteDialog = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (from !== 'playrecord' || !actualSource || !actualId) return;
+    setDeleteDialogOpen(true);
+  }, [from, actualSource, actualId]);
+
+  const handleConfirmDeleteRecord = useCallback(async () => {
+    if (from !== 'playrecord' || !actualSource || !actualId) return;
+    setDeleteLoading(true);
+    try {
+      await deletePlayRecord(actualSource, actualId);
+      onDelete?.();
+      setDeleteDialogOpen(false);
+    } catch (err) {
+      throw new Error('Failed to delete play record');
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [from, actualSource, actualId, onDelete]);
 
   const goToPlay = useCallback(() => {
     const shouldSearchByTitle = from === 'douban' || actualSource === 'tmdb';
@@ -765,6 +805,17 @@ export default function VideoCard({
     }
   }, [detailLoading, detailOpen, from, goToPlay, tmdbTrigger]);
 
+  const handleCardContainerClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('[data-card-action="true"]')) {
+        return;
+      }
+      void handleCardClick();
+    },
+    [handleCardClick]
+  );
+
   const handleRetryDetail = useCallback(async () => {
       if (!tmdbTrigger.title) return;
 
@@ -819,9 +870,7 @@ export default function VideoCard({
   return (
     <div
       className='group relative w-full rounded-lg bg-transparent cursor-pointer transition-all duration-300 ease-in-out hover:scale-[1.05] hover:z-[500]'
-      onClick={() => {
-        void handleCardClick();
-      }}
+      onClick={handleCardContainerClick}
     >
       {/* 婵炴挳鏀辨慨銈団偓鍦嚀濞?*/}
       <div className='relative aspect-[2/3] overflow-hidden rounded-lg'>
@@ -841,24 +890,42 @@ export default function VideoCard({
         <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100' />
 
         {(config.showHeart || config.showCheckCircle) && (
-          <div className='absolute bottom-3 right-3 flex gap-3 opacity-0 translate-y-2 transition-all duration-300 ease-in-out group-hover:opacity-100 group-hover:translate-y-0'>
+          <div
+            data-card-action='true'
+            className='absolute bottom-3 right-3 flex gap-2 opacity-0 translate-y-2 transition-all duration-300 ease-in-out group-hover:opacity-100 group-hover:translate-y-0'
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             {config.showCheckCircle && (
-              <CheckCircle
-                onClick={handleDeleteRecord}
-                size={20}
-                className='text-white transition-all duration-300 ease-out hover:stroke-green-500 hover:scale-[1.1]'
-              />
+              <button
+                type='button'
+                data-card-action='true'
+                aria-label='delete-play-record'
+                onClick={handleOpenDeleteDialog}
+                onMouseDown={(event) => event.stopPropagation()}
+                className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-white transition-all duration-300 ease-out hover:bg-black/55 hover:text-red-400'
+              >
+                <CheckCircle size={18} />
+              </button>
             )}
             {config.showHeart && (
-              <Heart
+              <button
+                type='button'
+                data-card-action='true'
+                aria-label='toggle-favorite'
                 onClick={handleToggleFavorite}
-                size={20}
-                className={`transition-all duration-300 ease-out ${
-                  favorited
-                    ? 'fill-red-600 stroke-red-600'
-                    : 'fill-transparent stroke-white hover:stroke-red-400'
-                } hover:scale-[1.1]`}
-              />
+                onMouseDown={(event) => event.stopPropagation()}
+                className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/35 transition-all duration-300 ease-out hover:bg-black/55'
+              >
+                <Heart
+                  size={18}
+                  className={`transition-all duration-300 ease-out ${
+                    favorited
+                      ? 'fill-red-600 stroke-red-600'
+                      : 'fill-transparent stroke-white hover:stroke-red-400'
+                  } hover:scale-[1.1]`}
+                />
+              </button>
             )}
           </div>
         )}
@@ -867,16 +934,14 @@ export default function VideoCard({
         {config.showRating &&
           rate &&
           (hasDoubanId ? (
-            <a
-              href={`https://movie.douban.com/subject/${actualDoubanId}`}
-              target='_blank'
-              rel='noopener noreferrer'
+            <div
+              data-card-action='true'
               onClick={(e) => e.stopPropagation()}
               className='absolute top-2 left-2 bg-black/70 text-yellow-300 text-xs font-bold h-7 px-2.5 rounded-full flex items-center gap-1 shadow-md transition-transform duration-200 ease-out hover:scale-105'
             >
               <Star size={14} stroke='currentColor' fill='currentColor' />
               <span>{rate}</span>
-            </a>
+            </div>
           ) : (
             <div className='absolute top-2 left-2 bg-black/70 text-yellow-300 text-xs font-bold h-7 px-2.5 rounded-full flex items-center gap-1 shadow-md'>
               <Star size={14} stroke='currentColor' fill='currentColor' />
@@ -894,17 +959,15 @@ export default function VideoCard({
 
         {/* 鐠炲棛鎽氶柧鐐复 */}
         {!config.showRating && config.showDoubanLink && hasDoubanId && (
-          <a
-            href={`https://movie.douban.com/subject/${actualDoubanId}`}
-            target='_blank'
-            rel='noopener noreferrer'
+          <div
+            data-card-action='true'
             onClick={(e) => e.stopPropagation()}
             className='absolute top-2 left-2 opacity-0 -translate-x-2 transition-all duration-300 ease-in-out delay-100 group-hover:opacity-100 group-hover:translate-x-0'
           >
             <div className='bg-yellow-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:bg-yellow-600 hover:scale-[1.1] transition-all duration-300 ease-out'>
               <Link size={16} />
             </div>
-          </a>
+          </div>
         )}
       </div>
 
@@ -950,6 +1013,80 @@ export default function VideoCard({
         }}
         onPlay={goToPlay}
       />
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+      >
+        <AlertDialogContent
+          className='max-w-sm rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{'\u786e\u8ba4\u5220\u9664\u5417\uff1f'}</AlertDialogTitle>
+            <AlertDialogDescription className='text-zinc-600 dark:text-zinc-300'>
+              {'\u8be5\u64ad\u653e\u8bb0\u5f55\u5c06\u88ab\u5220\u9664\u3002'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={deleteLoading}
+              className='border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+            >
+              {'\u53d6\u6d88'}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteLoading}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmDeleteRecord();
+              }}
+              className='bg-red-600 text-white hover:bg-red-700'
+            >
+              {deleteLoading ? '\u5220\u9664\u4e2d...' : '\u786e\u5b9a\u5220\u9664'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={favoriteDeleteDialogOpen}
+        onOpenChange={setFavoriteDeleteDialogOpen}
+      >
+        <AlertDialogContent
+          className='max-w-sm rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{'\u786e\u8ba4\u53d6\u6d88\u6536\u85cf\u5417\uff1f'}</AlertDialogTitle>
+            <AlertDialogDescription className='text-zinc-600 dark:text-zinc-300'>
+              {'\u8be5\u5185\u5bb9\u5c06\u4ece\u6536\u85cf\u5939\u4e2d\u79fb\u9664\u3002'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={favoriteDeleteLoading}
+              className='border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+            >
+              {'\u53d6\u6d88'}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={favoriteDeleteLoading}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmDeleteFavorite();
+              }}
+              className='bg-red-600 text-white hover:bg-red-700'
+            >
+              {favoriteDeleteLoading
+                ? '\u5904\u7406\u4e2d...'
+                : '\u786e\u5b9a\u53d6\u6d88'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

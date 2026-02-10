@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any */
 'use client';
 
 import { Search, X } from 'lucide-react';
@@ -54,9 +54,9 @@ function aggregateSearchResults(
 ): Array<[string, SearchResult[]]> {
   const map = new Map<string, SearchResult[]>();
   items.forEach((item) => {
-    const key = `${item.title.replaceAll(' ', '')}-${
-      item.year || 'unknown'
-    }-${item.episodes.length === 1 ? 'movie' : 'tv'}`;
+    const key = `${item.title.replaceAll(' ', '')}-${item.year || 'unknown'}-${
+      item.episodes.length === 1 ? 'movie' : 'tv'
+    }`;
     const arr = map.get(key) || [];
     arr.push(item);
     map.set(key, arr);
@@ -64,8 +64,12 @@ function aggregateSearchResults(
 
   return Array.from(map.entries()).sort((a, b) => {
     const normalizedQuery = query.trim().replaceAll(' ', '');
-    const aExactMatch = a[1][0].title.replaceAll(' ', '').includes(normalizedQuery);
-    const bExactMatch = b[1][0].title.replaceAll(' ', '').includes(normalizedQuery);
+    const aExactMatch = a[1][0].title
+      .replaceAll(' ', '')
+      .includes(normalizedQuery);
+    const bExactMatch = b[1][0].title
+      .replaceAll(' ', '')
+      .includes(normalizedQuery);
 
     if (aExactMatch && !bExactMatch) return -1;
     if (!aExactMatch && bExactMatch) return 1;
@@ -94,7 +98,9 @@ function SearchPageClient() {
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [personResults, setPersonResults] = useState<SearchPersonResult[]>([]);
-  const [legacySearchResults, setLegacySearchResults] = useState<SearchResult[]>([]);
+  const [legacySearchResults, setLegacySearchResults] = useState<
+    SearchResult[]
+  >([]);
 
   // 鑾峰彇榛樿鑱氬悎璁剧疆锛氬彧璇诲彇鐢ㄦ埛鏈湴璁剧疆锛岄粯璁や负 true
   const getDefaultAggregate = () => {
@@ -111,7 +117,6 @@ function SearchPageClient() {
     return getDefaultAggregate() ? 'agg' : 'all';
   });
 
-  // 鑱氬悎鍚庣殑缁撴灉锛堟寜鏍囬鍜屽勾浠藉垎缁勶級
   const aggregatedResults = useMemo(
     () => aggregateSearchResults(searchResults, searchQuery),
     [searchResults, searchQuery]
@@ -123,13 +128,10 @@ function SearchPageClient() {
   );
 
   useEffect(() => {
-    // 鏃犳悳绱㈠弬鏁版椂鑱氱劍鎼滅储妗?
     !searchParams.get('q') && document.getElementById('searchInput')?.focus();
 
-    // 鍒濆鍔犺浇鎼滅储鍘嗗彶
     getSearchHistory().then(setSearchHistory);
 
-    // 鐩戝惉鎼滅储鍘嗗彶鏇存柊浜嬩欢
     const unsubscribe = subscribeToDataUpdates(
       'searchHistoryUpdated',
       (newHistory: string[]) => {
@@ -143,13 +145,10 @@ function SearchPageClient() {
   }, []);
 
   useEffect(() => {
-    // 褰撴悳绱㈠弬鏁板彉鍖栨椂鏇存柊鎼滅储鐘舵€?
     const query = searchParams.get('q');
     if (query) {
       setSearchQuery(query);
       fetchSearchResults(query);
-
-      // 淇濆瓨鍒版悳绱㈠巻鍙?(浜嬩欢鐩戝惉浼氳嚜鍔ㄦ洿鏂扮晫闈?
       addSearchHistory(query);
     } else {
       setShowResults(false);
@@ -181,8 +180,12 @@ function SearchPageClient() {
           .catch(() => ({ results: [] })),
       ]);
 
-      let results = Array.isArray(tmdbPayload.results) ? tmdbPayload.results : [];
-      const people = Array.isArray(tmdbPayload.people) ? tmdbPayload.people : [];
+      let results = Array.isArray(tmdbPayload.results)
+        ? tmdbPayload.results
+        : [];
+      const people = Array.isArray(tmdbPayload.people)
+        ? tmdbPayload.people
+        : [];
       const legacyResults = Array.isArray(legacyPayload.results)
         ? legacyPayload.results
         : [];
@@ -230,16 +233,14 @@ function SearchPageClient() {
     const trimmed = searchQuery.trim().replace(/\s+/g, ' ');
     if (!trimmed) return;
 
-    // 鍥炴樉鎼滅储妗?
     setSearchQuery(trimmed);
     setIsLoading(true);
     setShowResults(true);
 
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
-    // 鐩存帴鍙戣姹?
+
     fetchSearchResults(trimmed);
 
-    // 淇濆瓨鍒版悳绱㈠巻鍙?(浜嬩欢鐩戝惉浼氳嚜鍔ㄦ洿鏂扮晫闈?
     addSearchHistory(trimmed);
   };
 
@@ -256,13 +257,11 @@ function SearchPageClient() {
     input?.focus();
   };
 
-
   return (
     <div className='min-h-screen w-full'>
       <div className='relative w-full'>
         <PageLayout activePath='/search'>
           <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
-            {/* 鎼滅储妗?*/}
             <div className='mb-8'>
               <form onSubmit={handleSearch} className='max-w-2xl mx-auto'>
                 <div className='relative'>
@@ -273,7 +272,7 @@ function SearchPageClient() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder='搜索电影、剧集、人物...'
-                    className='w-full h-12 rounded-full bg-gray-50/80 py-3 pl-10 pr-12 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white border border-gray-200/50 shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:bg-gray-700 dark:border-gray-700'
+                    className='w-full h-12 rounded-xl bg-gray-50/80 py-3 pl-10 pr-12 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white border border-gray-200/50 shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:bg-gray-700 dark:border-gray-700'
                   />
                   {searchQuery && (
                     <button
@@ -289,7 +288,6 @@ function SearchPageClient() {
               </form>
             </div>
 
-            {/* 鎼滅储缁撴灉鎴栨悳绱㈠巻鍙?*/}
             <div className='max-w-[95%] mx-auto mt-12 overflow-visible'>
               {isLoading ? (
                 <div className='flex justify-center items-center h-40'>
@@ -344,12 +342,10 @@ function SearchPageClient() {
                       </div>
                     </div>
                   )}
-                  {/* 鏍囬 + 鑱氬悎寮€鍏?*/}
                   <div className='mb-8 flex items-center justify-between'>
                     <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
                       搜索结果
                     </h2>
-                    {/* 鑱氬悎寮€鍏?*/}
                     <label className='flex items-center gap-2 cursor-pointer select-none'>
                       <span className='text-sm text-gray-700 dark:text-gray-300'>
                         聚合
@@ -412,13 +408,14 @@ function SearchPageClient() {
                             />
                           </div>
                         ))}
-                    {searchResults.length === 0 && legacySearchResults.length === 0 && (
-                      <div className='col-span-full text-center text-gray-500 py-8 dark:text-gray-400'>
-                        {personResults.length > 0
-                          ? 'No movie/tv results'
-                          : 'No matching results'}
-                      </div>
-                    )}
+                    {searchResults.length === 0 &&
+                      legacySearchResults.length === 0 && (
+                        <div className='col-span-full text-center text-gray-500 py-8 dark:text-gray-400'>
+                          {personResults.length > 0
+                            ? 'No movie/tv results'
+                            : 'No matching results'}
+                        </div>
+                      )}
                   </div>
 
                   {legacySearchResults.length > 0 && (
@@ -437,7 +434,10 @@ function SearchPageClient() {
                       <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
                         {viewMode === 'agg'
                           ? aggregatedLegacyResults.map(([mapKey, group]) => (
-                              <div key={`legacy-agg-${mapKey}`} className='w-full'>
+                              <div
+                                key={`legacy-agg-${mapKey}`}
+                                className='w-full'
+                              >
                                 <VideoCard
                                   from='search'
                                   items={group}
@@ -473,7 +473,9 @@ function SearchPageClient() {
                                   }
                                   year={item.year}
                                   from='search'
-                                  type={item.episodes.length > 1 ? 'tv' : 'movie'}
+                                  type={
+                                    item.episodes.length > 1 ? 'tv' : 'movie'
+                                  }
                                 />
                               </div>
                             ))}
@@ -482,17 +484,14 @@ function SearchPageClient() {
                   )}
                 </section>
               ) : searchHistory.length > 0 ? (
-                // 鎼滅储鍘嗗彶
                 <section className='mb-12'>
                   <h2 className='mb-4 text-xl font-bold text-gray-800 text-left dark:text-gray-200'>
                     搜索历史
                     {/* {searchHistory.length > 0 && (
                   <button
                     onClick={() => {
-                      clearSearchHistory(); // 浜嬩欢鐩戝惉浼氳嚜鍔ㄦ洿鏂扮晫闈?                    }}
                     className='ml-3 text-sm text-gray-500 hover:text-red-500 transition-colors dark:text-gray-400 dark:hover:text-red-500'
                   >
-                    娓呯┖
                   </button>
                 )} */}
                   </h2>
@@ -530,5 +529,3 @@ export default function SearchPage() {
     </Suspense>
   );
 }
-
-

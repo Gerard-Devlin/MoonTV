@@ -10,6 +10,7 @@ import {
   PartyPopper,
   Search,
   Tv,
+  UserRound,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -239,6 +240,23 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                 {!isCollapsed && (
                   <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
                     搜索
+                  </span>
+                )}
+              </Link>
+              <Link
+                href='/my'
+                onClick={() => setActive('/my')}
+                data-active={active === '/my'}
+                className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-blue-600 data-[active=true]:bg-blue-500/20 data-[active=true]:text-blue-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-blue-400 dark:data-[active=true]:bg-blue-500/10 dark:data-[active=true]:text-blue-400 ${
+                  isCollapsed ? 'w-full max-w-none mx-0' : 'mx-0'
+                } gap-3 justify-start`}
+              >
+                <div className='w-4 h-4 flex items-center justify-center'>
+                  <UserRound className='h-4 w-4 text-gray-500 group-hover:text-blue-600 data-[active=true]:text-blue-700 dark:text-gray-400 dark:group-hover:text-blue-400 dark:data-[active=true]:text-blue-400' />
+                </div>
+                {!isCollapsed && (
+                  <span className='whitespace-nowrap transition-opacity duration-200 opacity-100'>
+                    {'\u6211\u7684'}
                   </span>
                 )}
               </Link>

@@ -2,7 +2,15 @@
 
 'use client';
 
-import { Film, HeartPulse, Home, PartyPopper, Search, Tv } from 'lucide-react';
+import {
+  Film,
+  HeartPulse,
+  Home,
+  PartyPopper,
+  Search,
+  Tv,
+  UserRound,
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -29,6 +37,7 @@ const MobileBottomNav = ({
   const [navItems, setNavItems] = useState([
     { icon: Home, label: '\u9996\u9875', href: '/' },
     { icon: Search, label: '\u641c\u7d22', href: '/search' },
+    { icon: UserRound, label: '\u6211\u7684', href: '/my' },
     { icon: Film, label: '\u7535\u5f71', href: '/douban?type=movie' },
     { icon: Tv, label: '\u5267\u96c6', href: '/douban?type=tv' },
     { icon: HeartPulse, label: '\u7efc\u827a', href: '/douban?type=show' },
@@ -121,7 +130,7 @@ const MobileBottomNav = ({
               </li>
             );
 
-            if (item.href === '/search') {
+            if (item.href === '/my') {
               return [
                 navItem,
                 <li
