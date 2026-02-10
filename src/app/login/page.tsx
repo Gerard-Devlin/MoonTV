@@ -8,7 +8,6 @@ import Turnstile from 'react-turnstile';
 import { checkForUpdates, CURRENT_VERSION, UpdateStatus } from '@/lib/version';
 
 import { useSite } from '@/components/SiteProvider';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { AuroraBackground } from '@/components/ui/shadcn-io/aurora-background';
 
 type RuntimeConfig = {
@@ -194,9 +193,6 @@ function LoginPageClient() {
 
   return (
     <AuroraBackground className='overflow-hidden px-4'>
-      <div className='absolute right-4 top-4'>
-        <ThemeToggle />
-      </div>
       <div className='relative z-10 w-full max-w-md rounded-3xl bg-gradient-to-b from-white/90 via-white/70 to-white/40 p-10 shadow-2xl backdrop-blur-xl dark:border dark:border-zinc-800 dark:from-zinc-900/90 dark:via-zinc-900/70 dark:to-zinc-900/40'>
         <img
           src='/logo.png'

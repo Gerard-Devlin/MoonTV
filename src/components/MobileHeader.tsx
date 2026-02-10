@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import { BackButton } from './BackButton';
-import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
 
 interface MobileHeaderProps {
@@ -129,7 +128,6 @@ const MobileHeader = ({
           </div>
 
           <div className='flex items-center gap-2'>
-            <ThemeToggle />
             <UserMenu />
           </div>
         </div>

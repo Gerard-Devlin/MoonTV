@@ -2,7 +2,6 @@ import { BackButton } from './BackButton';
 import BackToTop from './BackToTop';
 import MobileNavController from './MobileNavController';
 import Sidebar from './Sidebar';
-import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
 
 interface PageLayoutProps {
@@ -39,7 +38,6 @@ const PageLayout = ({
           )}
 
           <div className='absolute top-2 right-4 z-20 hidden md:flex items-center gap-2'>
-            <ThemeToggle />
             <UserMenu />
           </div>
 
