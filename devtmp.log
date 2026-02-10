@@ -1,0 +1,44 @@
+
+> moontv@0.1.0 dev
+> pnpm gen:runtime && pnpm gen:manifest && next dev -H 0.0.0.0
+
+
+> moontv@0.1.0 gen:runtime D:\PythonProject\MoonTV
+> node scripts/convert-config.js
+
+旧的 runtime.ts 已删除
+已生成 src/lib/runtime.ts
+
+> moontv@0.1.0 gen:manifest D:\PythonProject\MoonTV
+> node scripts/generate-manifest.js
+
+✅ Generated manifest.json with site name: MoonTV
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ ⚠ Port 3000 is in use, trying 3001 instead.
+ ⚠ Port 3001 is in use, trying 3002 instead.
+ ⚠ Port 3002 is in use, trying 3003 instead.
+ ⚠ Port 3003 is in use, trying 3004 instead.
+ ⚠ Port 3004 is in use, trying 3005 instead.
+ ⚠ Port 3005 is in use, trying 3006 instead.
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+  ▲ Next.js 14.2.33
+  - Local:        http://localhost:3006
+  - Network:      http://0.0.0.0:3006
+
+ ✓ Starting...
+> [PWA] PWA support is disabled
+> [PWA] PWA support is disabled
+ ✓ Ready in 6.6s
+ ○ Compiling /src/middleware ...
+ ✓ Compiled /src/middleware in 1435ms (73 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 4.3s (1366 modules)
+ GET / 200 in 5020ms
+ ✓ Compiled in 772ms (411 modules)
+ ○ Compiling /api/douban/categories ...
+ ✓ Compiled /api/douban/categories in 606ms (197 modules)
+ ✓ Compiled (759 modules)
+ GET /api/douban/categories?kind=movie&category=%E7%83%AD%E9%97%A8&type=%E5%85%A8%E9%83%A8&limit=20&start=0 200 in 2337ms
+ GET /api/douban/categories?kind=tv&category=tv&type=tv&limit=20&start=0 200 in 2339ms
+ GET /api/douban/categories?kind=tv&category=show&type=show&limit=20&start=0 200 in 191ms
+ GET /api/tmdb/hero 200 in 4524ms

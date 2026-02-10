@@ -22,6 +22,7 @@ import { SearchResult } from '@/lib/types';
 
 import Loader from '@/components/Loader';
 import PageLayout from '@/components/PageLayout';
+import { AuroraBackground } from '@/components/ui/shadcn-io/aurora-background';
 import VideoCard from '@/components/VideoCard';
 
 export const runtime = 'edge';
@@ -169,10 +170,11 @@ export default function PersonDetailPage() {
   }, [creditSearchResults.length]);
 
   return (
-    <div className='min-h-screen w-full'>
-      <div className='relative w-full'>
+    <AuroraBackground className='h-auto min-h-screen w-full items-stretch justify-start overflow-visible bg-transparent [&>div:first-child>div]:opacity-25 [&>div:first-child>div]:saturate-50'>
+      <div className='pointer-events-none absolute inset-0 bg-black/40' />
+      <div className='relative z-10 w-full'>
         <PageLayout activePath='/search' forceShowBackButton>
-          <div className='px-4 sm:px-10 pt-14 pb-5 sm:pt-16 sm:pb-8 md:pt-20'>
+          <div className='px-4 pt-10 pb-5 sm:px-10 sm:pt-16 sm:pb-8 md:pt-20'>
             {loading ? (
               <div className='flex min-h-[50vh] items-center justify-center'>
                 <Loader />
@@ -185,14 +187,14 @@ export default function PersonDetailPage() {
               <div className='space-y-10'>
                 <section className='text-white'>
                   <div
-                    className='grid grid-cols-1 gap-6 p-6 md:gap-8 md:px-0 md:py-8 md:[grid-template-columns:var(--person-card-width)_minmax(0,1fr)]'
+                    className='grid grid-cols-1 gap-6 px-6 pb-6 pt-0 sm:p-6 md:gap-8 md:px-0 md:py-8 md:[grid-template-columns:var(--person-card-width)_minmax(0,1fr)]'
                     style={
                       {
                         '--person-card-width': `${personCardWidth}px`,
                       } as CSSProperties
                     }
                   >
-                    <div className='mx-auto w-full max-w-[180px] self-start overflow-hidden rounded-xl bg-white/10 shadow-lg md:mx-0 md:w-[var(--person-card-width)] md:max-w-none md:justify-self-start'>
+                    <div className='w-full max-w-[180px] self-start overflow-hidden rounded-xl bg-white/10 shadow-lg md:mx-0 md:w-[var(--person-card-width)] md:max-w-none md:justify-self-start'>
                       {detail.profile ? (
                         <div className='relative aspect-[2/3] w-full'>
                           <Image
@@ -212,7 +214,7 @@ export default function PersonDetailPage() {
 
                     <div className='space-y-4'>
                       <div className='space-y-4'>
-                        <h1 className='text-4xl font-bold tracking-tight text-white sm:text-5xl'>
+                        <h1 className='text-4xl font-bold tracking-tight text-white/85 sm:text-5xl'>
                           {detail.name}
                         </h1>
                         <div className='flex flex-wrap items-center gap-2 text-sm text-white/95'>
@@ -320,6 +322,6 @@ export default function PersonDetailPage() {
           </div>
         </PageLayout>
       </div>
-    </div>
+    </AuroraBackground>
   );
 }
