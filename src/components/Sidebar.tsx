@@ -42,9 +42,9 @@ const Logo = () => {
       <Image
         src='/logo.png'
         alt='Logo'
-        width={36}
-        height={36}
-        className='h-14 w-14 rounded-md mt-2'
+        width={32}
+        height={32}
+        className='h-12 w-12 rounded-md  mt-4'
         priority
       />
     </Link>
