@@ -10,7 +10,13 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { SearchResult } from '@/lib/types';
 
@@ -82,6 +88,8 @@ export default function PersonDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<PersonDetail | null>(null);
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [personCardWidth, setPersonCardWidth] = useState(176);
+  const creditsGridRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const idNum = Number(personId);
@@ -132,6 +140,34 @@ export default function PersonDetailPage() {
   const biography = (detail?.biography || '').trim();
   const canExpandBio = biography.length > 120;
 
+  useEffect(() => {
+    const measureCardWidth = () => {
+      const grid = creditsGridRef.current;
+      if (!grid) return;
+      const firstCardWrapper = grid.firstElementChild as HTMLElement | null;
+      if (!firstCardWrapper) return;
+      const width = Math.round(firstCardWrapper.getBoundingClientRect().width);
+      if (width > 0) {
+        setPersonCardWidth(width);
+      }
+    };
+
+    measureCardWidth();
+    window.addEventListener('resize', measureCardWidth);
+
+    const observer = new ResizeObserver(() => {
+      measureCardWidth();
+    });
+    if (creditsGridRef.current) {
+      observer.observe(creditsGridRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', measureCardWidth);
+      observer.disconnect();
+    };
+  }, [creditSearchResults.length]);
+
   return (
     <div className='min-h-screen w-full'>
       <div className='relative w-full'>
@@ -148,8 +184,15 @@ export default function PersonDetailPage() {
             ) : detail ? (
               <div className='space-y-10'>
                 <section className='text-white'>
-                  <div className='grid grid-cols-1 gap-6 p-6 md:grid-cols-[180px_1fr] md:gap-8 md:p-8'>
-                    <div className='mx-auto w-full max-w-[180px] self-start overflow-hidden rounded-xl border border-white/20 bg-white/10 shadow-lg md:mx-0'>
+                  <div
+                    className='grid grid-cols-1 gap-6 p-6 md:gap-8 md:px-0 md:py-8 md:[grid-template-columns:var(--person-card-width)_minmax(0,1fr)]'
+                    style={
+                      {
+                        '--person-card-width': `${personCardWidth}px`,
+                      } as CSSProperties
+                    }
+                  >
+                    <div className='mx-auto w-full max-w-[180px] self-start overflow-hidden rounded-xl bg-white/10 shadow-lg md:mx-0 md:w-[var(--person-card-width)] md:max-w-none md:justify-self-start'>
                       {detail.profile ? (
                         <div className='relative aspect-[2/3] w-full'>
                           <Image
@@ -247,7 +290,10 @@ export default function PersonDetailPage() {
                   </div>
 
                   {creditSearchResults.length > 0 ? (
-                    <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                    <div
+                      ref={creditsGridRef}
+                      className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'
+                    >
                       {creditSearchResults.map((item) => (
                         <div key={`person-credit-${item.type_name}-${item.id}`}>
                           <VideoCard

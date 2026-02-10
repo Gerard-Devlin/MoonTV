@@ -725,6 +725,10 @@ export default function VideoCard({
   const handleCardClick = useCallback(async () => {
     if (Date.now() < suppressCardClickUntilRef.current) return;
     if (detailOpen || detailLoading) return;
+    if (from === 'playrecord') {
+      goToPlay();
+      return;
+    }
     if (!tmdbTrigger.title) {
       goToPlay();
       return;
@@ -759,7 +763,7 @@ export default function VideoCard({
         setDetailLoading(false);
       }
     }
-  }, [detailLoading, detailOpen, goToPlay, tmdbTrigger]);
+  }, [detailLoading, detailOpen, from, goToPlay, tmdbTrigger]);
 
   const handleRetryDetail = useCallback(async () => {
       if (!tmdbTrigger.title) return;
