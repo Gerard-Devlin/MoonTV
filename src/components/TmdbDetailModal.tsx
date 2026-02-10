@@ -5,7 +5,6 @@ import {
   Clock3,
   Globe2,
   Info,
-  Loader2,
   Play,
   Star,
   Users,
@@ -129,9 +128,56 @@ export default function TmdbDetailModal({
 
         <div className='relative max-h-[85vh] overflow-y-auto p-4 sm:p-6'>
           {loading ? (
-            <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-white/80'>
-              <Loader2 className='h-7 w-7 animate-spin' />
-              <p className='text-sm'>正在加载详情...</p>
+            <div className='grid animate-pulse gap-6 md:grid-cols-[220px,1fr]'>
+              <div className='mx-auto w-40 md:mx-0 md:w-full'>
+                <div className='aspect-[2/3] overflow-hidden rounded-lg border border-white/20 bg-white/10 shadow-xl' />
+                {showPosterTitle ? (
+                  <div className='mx-auto mt-2 h-3 w-4/5 rounded bg-white/25' />
+                ) : null}
+              </div>
+
+              <div className='space-y-4'>
+                <div className='h-16 w-full max-w-[560px] rounded bg-white/30 sm:h-24' />
+
+                <div className='flex flex-wrap items-center gap-3'>
+                  <div className='h-5 w-[88px] rounded-full bg-white/20' />
+                  <div className='h-5 w-[64px] rounded-full bg-white/30' />
+                  <div className='h-5 w-[84px] rounded-full bg-white/30' />
+                  <div className='h-5 w-[136px] rounded-full bg-white/30' />
+                  <div className='h-5 w-[52px] rounded bg-white/30' />
+                </div>
+
+                <div className='flex flex-wrap gap-2'>
+                  <div className='h-7 w-20 rounded-full bg-white/30' />
+                  <div className='h-7 w-24 rounded-full bg-white/30' />
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='h-4 w-full rounded bg-white/30' />
+                  <div className='h-4 w-[92%] rounded bg-white/25' />
+                  <div className='h-4 w-[84%] rounded bg-white/25' />
+                  <div className='h-4 w-[68%] rounded bg-white/20' />
+                </div>
+
+                <div className='flex flex-wrap items-center gap-4'>
+                  <div className='h-4 w-[72px] rounded bg-white/25' />
+                  <div className='h-4 w-[108px] rounded bg-white/25' />
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='h-4 w-[48px] rounded bg-white/25' />
+                  <div className='flex flex-wrap gap-2'>
+                    <div className='h-7 w-24 rounded-full bg-white/25' />
+                    <div className='h-7 w-28 rounded-full bg-white/25' />
+                    <div className='h-7 w-20 rounded-full bg-white/25' />
+                  </div>
+                </div>
+
+                <div className='flex flex-wrap gap-3 pt-1'>
+                  <div className='h-10 w-[120px] rounded-lg bg-white/35' />
+                  <div className='h-10 w-[104px] rounded-lg bg-white/25' />
+                </div>
+              </div>
             </div>
           ) : null}
 

@@ -714,6 +714,8 @@ export default function VideoCard({
     }
 
     setDetailError(null);
+    setDetailData(null);
+    setDetailOpen(true);
     setDetailLoading(true);
     const requestId = ++detailRequestIdRef.current;
 
@@ -722,9 +724,9 @@ export default function VideoCard({
       if (detailRequestIdRef.current !== requestId) return;
       detailCacheRef.current[cacheKey] = detail;
       setDetailData(detail);
-      setDetailOpen(true);
     } catch {
       if (detailRequestIdRef.current !== requestId) return;
+      setDetailOpen(false);
       goToPlay();
     } finally {
       if (detailRequestIdRef.current === requestId) {

@@ -77,7 +77,7 @@ const MobileBottomNav = ({
       )}
 
       <nav
-        className={`md:hidden fixed top-0 left-0 z-[700] h-full w-56 bg-white/95 backdrop-blur-xl border-r border-gray-200/60 shadow-2xl transition-transform duration-300 ease-out dark:bg-gray-900/90 dark:border-gray-700/60 ${
+        className={`md:hidden fixed top-0 left-0 z-[700] h-full w-56 bg-black/95 backdrop-blur-xl border-r border-gray-700/60 shadow-2xl transition-transform duration-300 ease-out dark:bg-black/95 dark:border-gray-700/60 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
@@ -92,7 +92,7 @@ const MobileBottomNav = ({
             className='inline-flex items-center justify-center p-1 transition-opacity hover:opacity-85'
             aria-label='返回首页'
           >
-            <Image src='/logo.png' alt='logo' width={30} height={30} />
+            <Image src='/logo.png' alt='logo' width={50} height={50} />
           </Link>
         </div>
         <ul className='flex flex-col gap-1 px-3 py-4'>

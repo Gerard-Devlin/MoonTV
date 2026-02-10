@@ -3,13 +3,10 @@
 import {
   CalendarDays,
   Clock3,
-  Globe2,
   Info,
-  Loader2,
   Play,
   Star,
   Users,
-  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -23,6 +20,8 @@ import {
 } from 'react';
 
 import { processImageUrl } from '@/lib/utils';
+
+import TmdbDetailModal from '@/components/TmdbDetailModal';
 
 interface TmdbHeroItem {
   id: number;
@@ -181,6 +180,11 @@ const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 const HERO_ITEM_LIMIT = 7;
 const SWIPE_THRESHOLD_PX = 48;
+const TEXT_MOVIE = '\u7535\u5f71';
+const TEXT_TV = '\u5267\u96c6';
+const TEXT_PLAY = '\u64ad\u653e';
+const TEXT_DETAIL = '\u8be6\u60c5';
+const TEXT_DETAIL_LOAD_FAILED = '\u52a0\u8f7d\u8be6\u60c5\u5931\u8d25';
 
 function toYear(value?: string): string {
   if (!value) return '';
@@ -706,7 +710,7 @@ export default function TmdbHeroBanner({
       }
 
       if (!resolved && detailRequestIdRef.current === requestId) {
-        setDetailError((err as Error).message || '加载详情失败');
+        setDetailError((err as Error).message || TEXT_DETAIL_LOAD_FAILED);
       }
     } finally {
       if (detailRequestIdRef.current === requestId) {
@@ -862,7 +866,112 @@ export default function TmdbHeroBanner({
   if (loading) {
     return (
       <section className={fullWidthSectionClass}>
-        <div className='h-[78vh] w-full bg-gray-200 animate-pulse dark:bg-gray-800 md:h-screen' />
+        <div className='relative h-[78vh] overflow-hidden bg-slate-950 text-white md:h-screen'>
+          <div className='absolute inset-0 bg-gradient-to-br from-slate-700/30 via-slate-900/50 to-black' />
+          <div className='absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent' />
+          <div className='absolute inset-0 bg-gradient-to-r from-black/75 to-transparent' />
+          <div className='absolute -left-20 top-8 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse' />
+          <div className='absolute right-0 top-1/4 h-72 w-72 rounded-full bg-white/10 blur-3xl animate-pulse' />
+
+          <div className='absolute bottom-0 left-0 z-20 hidden w-full p-4 md:block md:w-3/4 md:translate-y-4 md:px-8 md:pt-8 md:pb-0 lg:w-1/2 lg:translate-y-6 lg:px-12 lg:pt-12 lg:pb-1'>
+            <div className='space-y-4 rounded-lg p-2 md:p-3 animate-pulse'>
+              <div className='h-16 w-full max-w-[460px] rounded-md bg-white/20 sm:h-20 md:h-24 lg:h-28' />
+
+              <div className='flex flex-wrap items-center gap-3'>
+                <span className='h-5 w-16 rounded-full bg-white/25' />
+                <span className='h-5 w-14 rounded-full bg-white/20' />
+                <span className='h-5 w-16 rounded-full bg-white/20' />
+                <span className='h-5 w-24 rounded-full bg-white/20' />
+              </div>
+
+              <div className='max-w-xl space-y-2'>
+                <div className='h-4 w-full rounded bg-white/20' />
+                <div className='h-4 w-[88%] rounded bg-white/20' />
+                <div className='h-4 w-[74%] rounded bg-white/10' />
+              </div>
+
+              <div className='flex flex-wrap items-center gap-3'>
+                <div className='inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/20 px-5 py-2.5 shadow-lg backdrop-blur-md'>
+                  <Play size={16} className='opacity-0' aria-hidden='true' />
+                  <span className='text-sm font-semibold text-transparent'>
+                    {TEXT_PLAY}
+                  </span>
+                </div>
+                <div className='inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/10 px-5 py-2.5 shadow-lg backdrop-blur-md'>
+                  <Info size={16} className='opacity-0' aria-hidden='true' />
+                  <span className='text-sm font-semibold text-transparent'>
+                    {TEXT_DETAIL}
+                  </span>
+                </div>
+              </div>
+
+              <div className='hidden pt-2 lg:block'>
+                <div
+                  className='grid gap-2 pb-2'
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.max(HERO_ITEM_LIMIT, 1)}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {Array.from({ length: HERO_ITEM_LIMIT }).map((_, index) => (
+                    <div
+                      key={`hero-skeleton-thumb-${index}`}
+                      className='flex min-w-0 flex-col items-center'
+                    >
+                      <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg border-2 border-white/30 bg-white/10' />
+                      <div className='mt-2 flex w-full justify-center'>
+                        <div className='h-3 w-[76%] rounded bg-white/20' />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className='absolute inset-x-0 bottom-0 z-20 px-4 pb-4 pt-20 md:hidden'>
+            <div className='rounded-xl bg-black/35 p-3 backdrop-blur-sm'>
+              <div className='animate-pulse'>
+                <div className='flex gap-4'>
+                  <div className='aspect-[2/3] w-24 flex-shrink-0 rounded-md bg-white/20' />
+                  <div className='min-w-0 flex-1 space-y-2'>
+                    <div className='h-9 w-36 max-w-full rounded-md bg-white/20' />
+                    <div className='flex items-center gap-2'>
+                      <span className='h-4 w-10 rounded-full bg-white/20' />
+                      <span className='h-4 w-8 rounded-full bg-white/20' />
+                      <span className='h-4 w-10 rounded-full bg-white/20' />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <div className='h-3.5 w-full rounded bg-white/20' />
+                      <div className='h-3.5 w-[90%] rounded bg-white/20' />
+                      <div className='h-3.5 w-[76%] rounded bg-white/10' />
+                    </div>
+                  </div>
+                </div>
+
+                <div className='mt-3 flex gap-3'>
+                  <div className='inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/35 bg-white/20 px-4 py-2 backdrop-blur-sm'>
+                    <Play size={14} className='opacity-0' aria-hidden='true' />
+                    <span className='text-sm font-semibold text-transparent'>
+                      {TEXT_PLAY}
+                    </span>
+                  </div>
+                  <div className='inline-flex items-center justify-center gap-2 rounded-xl border border-white/35 bg-white/10 px-4 py-2 backdrop-blur-sm'>
+                    <Info size={14} className='opacity-0' aria-hidden='true' />
+                    <span className='text-sm font-semibold text-transparent'>
+                      {TEXT_DETAIL}
+                    </span>
+                  </div>
+                </div>
+
+                <div className='mt-3 flex justify-center gap-2'>
+                  <span className='h-2 w-8 rounded-full bg-white/35' />
+                  <span className='h-2 w-2 rounded-full bg-white/25' />
+                  <span className='h-2 w-2 rounded-full bg-white/25' />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     );
   }
@@ -962,7 +1071,7 @@ export default function TmdbHeroBanner({
                 </span>
               )}
               <span className='rounded border border-white/30 px-1.5 py-0.5 text-[11px] font-medium uppercase text-white/90'>
-                {activeItem.mediaType === 'movie' ? '电影' : '剧集'}
+                {activeItem.mediaType === 'movie' ? TEXT_MOVIE : TEXT_TV}
               </span>
               {activeItem.mediaType === 'movie' && activeItem.runtime ? (
                 <span className='inline-flex items-center gap-1 text-white/80'>
@@ -991,7 +1100,7 @@ export default function TmdbHeroBanner({
                 className='inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/20 px-5 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:bg-white/30 hover:shadow-xl'
               >
                 <Play size={16} />
-                播放
+                {TEXT_PLAY}
               </button>
               <button
                 type='button'
@@ -999,7 +1108,7 @@ export default function TmdbHeroBanner({
                 className='inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:bg-white/20 hover:shadow-xl'
               >
                 <Info size={16} />
-                详情
+                {TEXT_DETAIL}
               </button>
             </div>
 
@@ -1088,7 +1197,7 @@ export default function TmdbHeroBanner({
                   )}
                   {activeItem.year && <span>{activeItem.year}</span>}
                   <span className='rounded border border-white/30 px-1 py-0.5 uppercase'>
-                    {activeItem.mediaType === 'movie' ? '电影' : '剧集'}
+                    {activeItem.mediaType === 'movie' ? TEXT_MOVIE : TEXT_TV}
                   </span>
                   {activeItem.mediaType === 'movie' && activeItem.runtime ? (
                     <span className='inline-flex items-center gap-1 text-white/80'>
@@ -1119,7 +1228,7 @@ export default function TmdbHeroBanner({
                 className='inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/35 bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm'
               >
                 <Play size={14} />
-                播放
+                {TEXT_PLAY}
               </button>
               <button
                 type='button'
@@ -1127,7 +1236,7 @@ export default function TmdbHeroBanner({
                 className='inline-flex items-center justify-center gap-2 rounded-xl border border-white/35 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm'
               >
                 <Info size={14} />
-                详情
+                {TEXT_DETAIL}
               </button>
             </div>
 
@@ -1149,233 +1258,26 @@ export default function TmdbHeroBanner({
           </div>
         </div>
 
-        {detailOpen && (
-          <div
-            className='fixed inset-0 z-[850] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
-            onClick={handleCloseDetail}
-          >
-            <div
-              className='relative w-full max-w-4xl overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type='button'
-                onClick={handleCloseDetail}
-                className='absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white/80 transition-colors hover:text-white'
-                aria-label='Close detail dialog'
-              >
-                <X size={18} />
-              </button>
-
-              <div className='absolute inset-0'>
-                {detailData?.backdrop ? (
-                  <Image
-                    src={safeImageUrl(detailData.backdrop)}
-                    alt={detailData.title}
-                    fill
-                    className='object-cover opacity-30'
-                  />
-                ) : null}
-                <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
-              </div>
-
-              <div className='relative max-h-[85vh] overflow-y-auto p-4 sm:p-6'>
-                {detailLoading && (
-                  <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-white/80'>
-                    <Loader2 className='h-7 w-7 animate-spin' />
-                    <p className='text-sm'>正在加载详情...</p>
-                  </div>
-                )}
-
-                {!detailLoading && detailError && (
-                  <div className='flex min-h-[320px] flex-col items-center justify-center gap-3 text-center'>
-                    <p className='text-base font-medium text-white'>详情加载失败</p>
-                    <p className='text-sm text-white/70'>{detailError}</p>
-                    {detailItem ? (
-                      <button
-                        type='button'
-                        onClick={() => handleOpenDetail(detailItem)}
-                        className='mt-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20'
-                      >
-                        重试
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-
-                {!detailLoading && !detailError && detailData && (
-                  <div className='grid gap-6 md:grid-cols-[220px,1fr]'>
-                    <div className='mx-auto w-40 md:mx-0 md:w-full'>
-                      <div className='relative aspect-[2/3] overflow-hidden rounded-lg border border-white/20 shadow-xl'>
-                        {detailData.poster || detailData.backdrop ? (
-                          <Image
-                            src={safeImageUrl(
-                              detailData.poster || detailData.backdrop
-                            )}
-                            alt={detailData.title}
-                            fill
-                            className='object-cover'
-                          />
-                        ) : (
-                          <div className='flex h-full w-full items-center justify-center bg-white/10 text-xs text-white/60'>
-                            No Poster
-                          </div>
-                        )}
-                      </div>
-                      <p className='mt-2 truncate text-center text-xs text-white/60'>
-                        {detailData.title}
-                      </p>
-                    </div>
-
-                    <div className='space-y-4'>
-                      {detailItem?.logo ? (
-                        <div className='relative h-16 w-full max-w-[560px] sm:h-24'>
-                          <Image
-                            src={safeImageUrl(detailItem.logo)}
-                            alt={`${detailData.title} logo`}
-                            fill
-                            className='object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
-                          />
-                        </div>
-                      ) : (
-                        <h3 className='text-2xl font-bold sm:text-3xl'>
-                          {detailData.title}
-                        </h3>
-                      )}
-
-                      <div className='flex flex-wrap items-center gap-3 text-sm text-white/90'>
-                        {detailData.score && (
-                          <span className='inline-flex items-center gap-1'>
-                            <Star
-                              size={15}
-                              className='text-yellow-400'
-                              fill='currentColor'
-                            />
-                            <span className='font-semibold'>
-                              {detailData.score}
-                            </span>
-                            {detailData.voteCount > 0 ? (
-                              <span className='text-white/65'>
-                                ({detailData.voteCount})
-                              </span>
-                            ) : null}
-                          </span>
-                        )}
-
-                        {detailData.year && (
-                          <span className='inline-flex items-center gap-1 text-white/80'>
-                            <CalendarDays size={14} />
-                            {detailData.year}
-                          </span>
-                        )}
-
-                        {detailData.runtime ? (
-                          <span className='inline-flex items-center gap-1 text-white/80'>
-                            <Clock3 size={14} />
-                            {formatRuntime(detailData.runtime)}
-                          </span>
-                        ) : null}
-
-                        {detailData.mediaType === 'tv' &&
-                        detailData.seasons &&
-                        detailData.episodes ? (
-                          <span className='inline-flex items-center gap-1 text-white/80'>
-                            <Users size={14} />
-                            {detailData.seasons} Seasons / {detailData.episodes} Episodes
-                          </span>
-                        ) : null}
-
-                        {detailData.contentRating ? (
-                          <span className='rounded border border-white/35 px-1.5 py-0.5 text-[11px] font-medium text-white/95'>
-                            {detailData.contentRating}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {detailData.genres.length > 0 && (
-                        <div className='flex flex-wrap gap-2'>
-                          {detailData.genres.map((genre) => (
-                            <span
-                              key={genre}
-                              className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90'
-                            >
-                              {genre}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <p className='text-sm leading-6 text-white/85 sm:text-base'>
-                        {detailData.overview}
-                      </p>
-
-                      <div className='flex flex-wrap items-center gap-4 text-xs text-white/70 sm:text-sm'>
-                        {detailData.language ? (
-                          <span className='inline-flex items-center gap-1'>
-                            <Globe2 size={14} />
-                            {detailData.language}
-                          </span>
-                        ) : null}
-                        {typeof detailData.popularity === 'number' ? (
-                          <span>Popularity: {detailData.popularity}</span>
-                        ) : null}
-                      </div>
-
-                      {detailData.cast.length > 0 && (
-                        <div className='space-y-2'>
-                          <p className='text-sm font-semibold text-white/90'>
-                            主演
-                          </p>
-                          <div className='flex flex-wrap gap-2'>
-                            {detailData.cast.map((person) => (
-                              <span
-                                key={`${person.id}-${person.name}`}
-                                className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90'
-                              >
-                                {person.name}
-                                {person.character
-                                  ? ` · ${person.character}`
-                                  : ''}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className='flex flex-wrap gap-3 pt-1'>
-                        <button
-                          type='button'
-                          onClick={() => {
-                            if (detailItem) {
-                              handleCloseDetail();
-                              router.push(buildPlayUrl(detailItem));
-                            }
-                          }}
-                          className='inline-flex items-center gap-2 rounded-lg border border-white/70 bg-white px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90'
-                        >
-                          <Play size={14} />
-                          立即播放
-                        </button>
-
-                        {detailData.trailerUrl ? (
-                          <a
-                            href={detailData.trailerUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='inline-flex items-center gap-2 rounded-lg border border-white/35 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20'
-                          >
-                            <Info size={14} />
-                            预告片
-                          </a>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <TmdbDetailModal
+          open={detailOpen}
+          loading={detailLoading}
+          error={detailError}
+          detail={detailData}
+          titleLogo={detailItem?.logo}
+          onClose={handleCloseDetail}
+          onRetry={
+            detailItem
+              ? () => {
+                  void handleOpenDetail(detailItem);
+                }
+              : undefined
+          }
+          onPlay={() => {
+            if (detailItem) {
+              router.push(buildPlayUrl(detailItem));
+            }
+          }}
+        />
 
       </div>
     </section>
