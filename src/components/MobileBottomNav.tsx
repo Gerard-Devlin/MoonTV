@@ -81,11 +81,11 @@ const MobileBottomNav = ({
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
-          paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)',
+          paddingTop: 'calc(env(safe-area-inset-top) + 0.6rem)',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        <div className='flex justify-center pt-3'>
+        <div className='flex justify-center pt-2'>
           <Link
             href='/'
             onClick={onClose}
