@@ -18,6 +18,8 @@ import Loader from '@/components/Loader';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
 
+export const runtime = 'edge';
+
 interface PersonCredit {
   id: number;
   mediaType: 'movie' | 'tv';
