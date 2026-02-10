@@ -646,7 +646,8 @@ export default function VideoCard({
   );
 
   const goToPlay = useCallback(() => {
-    if (from === 'douban') {
+    const shouldSearchByTitle = from === 'douban' || actualSource === 'tmdb';
+    if (shouldSearchByTitle) {
       router.push(
         `/play?title=${encodeURIComponent(actualTitle.trim())}${
           actualYear ? `&year=${actualYear}` : ''

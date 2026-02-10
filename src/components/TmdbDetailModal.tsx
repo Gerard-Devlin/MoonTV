@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { createPortal } from 'react-dom';
 
 import { processImageUrl } from '@/lib/utils';
@@ -311,13 +312,15 @@ export default function TmdbDetailModal({
                     <p className='text-sm font-semibold text-white/90'>主演</p>
                     <div className='flex flex-wrap gap-2'>
                       {detail.cast.map((person) => (
-                        <span
+                        <Link
                           key={`${person.id}-${person.name}`}
-                          className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90'
+                          href={`/person/${person.id}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className='rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-xs text-white/90 transition-colors hover:bg-white/20'
                         >
                           {person.name}
                           {person.character ? ` · ${person.character}` : ''}
-                        </span>
+                        </Link>
                       ))}
                     </div>
                   </div>

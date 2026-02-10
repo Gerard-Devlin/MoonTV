@@ -1,13 +1,14 @@
-/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any */
 'use client';
 
 import { Search, X } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 
 import {
   addSearchHistory,
-  deleteSearchHistory,
   getSearchHistory,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
@@ -16,11 +17,74 @@ import { yellowWords } from '@/lib/yellow';
 
 import Loader from '@/components/Loader';
 import PageLayout from '@/components/PageLayout';
-import { AuroraBackground } from '@/components/ui/shadcn-io/aurora-background';
 import VideoCard from '@/components/VideoCard';
 
+interface SearchPersonResult {
+  id: number;
+  name: string;
+  profile: string;
+  popularity: number;
+  department: string;
+  known_for: string[];
+}
+
+const DEPARTMENT_LABELS: Record<string, string> = {
+  Acting: '演员',
+  Directing: '导演',
+  Production: '制片',
+  Writing: '编剧',
+  Creator: '创作',
+  Camera: '摄影',
+  Editing: '剪辑',
+  Sound: '声音',
+  Art: '美术',
+  'Costume & Make-Up': '服装化妆',
+  'Visual Effects': '视觉特效',
+};
+
+function formatDepartment(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) return '';
+  return DEPARTMENT_LABELS[normalized] || normalized;
+}
+
+function aggregateSearchResults(
+  items: SearchResult[],
+  query: string
+): Array<[string, SearchResult[]]> {
+  const map = new Map<string, SearchResult[]>();
+  items.forEach((item) => {
+    const key = `${item.title.replaceAll(' ', '')}-${
+      item.year || 'unknown'
+    }-${item.episodes.length === 1 ? 'movie' : 'tv'}`;
+    const arr = map.get(key) || [];
+    arr.push(item);
+    map.set(key, arr);
+  });
+
+  return Array.from(map.entries()).sort((a, b) => {
+    const normalizedQuery = query.trim().replaceAll(' ', '');
+    const aExactMatch = a[1][0].title.replaceAll(' ', '').includes(normalizedQuery);
+    const bExactMatch = b[1][0].title.replaceAll(' ', '').includes(normalizedQuery);
+
+    if (aExactMatch && !bExactMatch) return -1;
+    if (!aExactMatch && bExactMatch) return 1;
+
+    if (a[1][0].year === b[1][0].year) {
+      return a[0].localeCompare(b[0]);
+    }
+
+    const aYear = a[1][0].year;
+    const bYear = b[1][0].year;
+    if (aYear === 'unknown' && bYear === 'unknown') return 0;
+    if (aYear === 'unknown') return 1;
+    if (bYear === 'unknown') return -1;
+    return aYear > bYear ? -1 : 1;
+  });
+}
+
 function SearchPageClient() {
-  // 搜索历史
+  // 鎼滅储鍘嗗彶
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   const router = useRouter();
@@ -29,8 +93,10 @@ function SearchPageClient() {
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [personResults, setPersonResults] = useState<SearchPersonResult[]>([]);
+  const [legacySearchResults, setLegacySearchResults] = useState<SearchResult[]>([]);
 
-  // 获取默认聚合设置：只读取用户本地设置，默认为 true
+  // 鑾峰彇榛樿鑱氬悎璁剧疆锛氬彧璇诲彇鐢ㄦ埛鏈湴璁剧疆锛岄粯璁や负 true
   const getDefaultAggregate = () => {
     if (typeof window !== 'undefined') {
       const userSetting = localStorage.getItem('defaultAggregateSearch');
@@ -38,67 +104,32 @@ function SearchPageClient() {
         return JSON.parse(userSetting);
       }
     }
-    return true; // 默认启用聚合
+    return true; // 榛樿鍚敤鑱氬悎
   };
 
   const [viewMode, setViewMode] = useState<'agg' | 'all'>(() => {
     return getDefaultAggregate() ? 'agg' : 'all';
   });
 
-  // 聚合后的结果（按标题和年份分组）
-  const aggregatedResults = useMemo(() => {
-    const map = new Map<string, SearchResult[]>();
-    searchResults.forEach((item) => {
-      // 使用 title + year + type 作为键，year 必然存在，但依然兜底 'unknown'
-      const key = `${item.title.replaceAll(' ', '')}-${
-        item.year || 'unknown'
-      }-${item.episodes.length === 1 ? 'movie' : 'tv'}`;
-      const arr = map.get(key) || [];
-      arr.push(item);
-      map.set(key, arr);
-    });
-    return Array.from(map.entries()).sort((a, b) => {
-      // 优先排序：标题与搜索词完全一致的排在前面
-      const aExactMatch = a[1][0].title
-        .replaceAll(' ', '')
-        .includes(searchQuery.trim().replaceAll(' ', ''));
-      const bExactMatch = b[1][0].title
-        .replaceAll(' ', '')
-        .includes(searchQuery.trim().replaceAll(' ', ''));
+  // 鑱氬悎鍚庣殑缁撴灉锛堟寜鏍囬鍜屽勾浠藉垎缁勶級
+  const aggregatedResults = useMemo(
+    () => aggregateSearchResults(searchResults, searchQuery),
+    [searchResults, searchQuery]
+  );
 
-      if (aExactMatch && !bExactMatch) return -1;
-      if (!aExactMatch && bExactMatch) return 1;
-
-      // 年份排序
-      if (a[1][0].year === b[1][0].year) {
-        return a[0].localeCompare(b[0]);
-      } else {
-        // 处理 unknown 的情况
-        const aYear = a[1][0].year;
-        const bYear = b[1][0].year;
-
-        if (aYear === 'unknown' && bYear === 'unknown') {
-          return 0;
-        } else if (aYear === 'unknown') {
-          return 1; // a 排在后面
-        } else if (bYear === 'unknown') {
-          return -1; // b 排在后面
-        } else {
-          // 都是数字年份，按数字大小排序（大的在前面）
-          return aYear > bYear ? -1 : 1;
-        }
-      }
-    });
-  }, [searchResults]);
+  const aggregatedLegacyResults = useMemo(
+    () => aggregateSearchResults(legacySearchResults, searchQuery),
+    [legacySearchResults, searchQuery]
+  );
 
   useEffect(() => {
-    // 无搜索参数时聚焦搜索框
+    // 鏃犳悳绱㈠弬鏁版椂鑱氱劍鎼滅储妗?
     !searchParams.get('q') && document.getElementById('searchInput')?.focus();
 
-    // 初始加载搜索历史
+    // 鍒濆鍔犺浇鎼滅储鍘嗗彶
     getSearchHistory().then(setSearchHistory);
 
-    // 监听搜索历史更新事件
+    // 鐩戝惉鎼滅储鍘嗗彶鏇存柊浜嬩欢
     const unsubscribe = subscribeToDataUpdates(
       'searchHistoryUpdated',
       (newHistory: string[]) => {
@@ -112,27 +143,49 @@ function SearchPageClient() {
   }, []);
 
   useEffect(() => {
-    // 当搜索参数变化时更新搜索状态
+    // 褰撴悳绱㈠弬鏁板彉鍖栨椂鏇存柊鎼滅储鐘舵€?
     const query = searchParams.get('q');
     if (query) {
       setSearchQuery(query);
       fetchSearchResults(query);
 
-      // 保存到搜索历史 (事件监听会自动更新界面)
+      // 淇濆瓨鍒版悳绱㈠巻鍙?(浜嬩欢鐩戝惉浼氳嚜鍔ㄦ洿鏂扮晫闈?
       addSearchHistory(query);
     } else {
       setShowResults(false);
+      setPersonResults([]);
+      setLegacySearchResults([]);
     }
   }, [searchParams]);
 
   const fetchSearchResults = async (query: string) => {
     try {
       setIsLoading(true);
-      const response = await fetch(
-        `/api/search?q=${encodeURIComponent(query.trim())}`
-      );
-      const data = await response.json();
-      let results = data.results;
+      const trimmedQuery = query.trim();
+
+      const [tmdbPayload, legacyPayload] = await Promise.all([
+        fetch(`/api/tmdb/search?q=${encodeURIComponent(trimmedQuery)}`)
+          .then(async (response) => {
+            if (!response.ok) return { results: [], people: [] };
+            return (await response.json()) as {
+              results?: SearchResult[];
+              people?: SearchPersonResult[];
+            };
+          })
+          .catch(() => ({ results: [], people: [] })),
+        fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`)
+          .then(async (response) => {
+            if (!response.ok) return { results: [] };
+            return (await response.json()) as { results?: SearchResult[] };
+          })
+          .catch(() => ({ results: [] })),
+      ]);
+
+      let results = Array.isArray(tmdbPayload.results) ? tmdbPayload.results : [];
+      const people = Array.isArray(tmdbPayload.people) ? tmdbPayload.people : [];
+      const legacyResults = Array.isArray(legacyPayload.results)
+        ? legacyPayload.results
+        : [];
       if (
         typeof window !== 'undefined' &&
         !(window as any).RUNTIME_CONFIG?.DISABLE_YELLOW_FILTER
@@ -144,34 +197,29 @@ function SearchPageClient() {
       }
       setSearchResults(
         results.sort((a: SearchResult, b: SearchResult) => {
-          // 优先排序：标题与搜索词完全一致的排在前面
-          const aExactMatch = a.title === query.trim();
-          const bExactMatch = b.title === query.trim();
+          const aExactMatch = a.title === trimmedQuery;
+          const bExactMatch = b.title === trimmedQuery;
 
           if (aExactMatch && !bExactMatch) return -1;
           if (!aExactMatch && bExactMatch) return 1;
 
-          // 如果都匹配或都不匹配，则按原来的逻辑排序
           if (a.year === b.year) {
             return a.title.localeCompare(b.title);
-          } else {
-            // 处理 unknown 的情况
-            if (a.year === 'unknown' && b.year === 'unknown') {
-              return 0;
-            } else if (a.year === 'unknown') {
-              return 1; // a 排在后面
-            } else if (b.year === 'unknown') {
-              return -1; // b 排在后面
-            } else {
-              // 都是数字年份，按数字大小排序（大的在前面）
-              return parseInt(a.year) > parseInt(b.year) ? -1 : 1;
-            }
           }
+
+          if (a.year === 'unknown' && b.year === 'unknown') return 0;
+          if (a.year === 'unknown') return 1;
+          if (b.year === 'unknown') return -1;
+          return parseInt(a.year) > parseInt(b.year) ? -1 : 1;
         })
       );
+      setPersonResults(people);
+      setLegacySearchResults(legacyResults);
       setShowResults(true);
     } catch (error) {
       setSearchResults([]);
+      setPersonResults([]);
+      setLegacySearchResults([]);
     } finally {
       setIsLoading(false);
     }
@@ -182,22 +230,24 @@ function SearchPageClient() {
     const trimmed = searchQuery.trim().replace(/\s+/g, ' ');
     if (!trimmed) return;
 
-    // 回显搜索框
+    // 鍥炴樉鎼滅储妗?
     setSearchQuery(trimmed);
     setIsLoading(true);
     setShowResults(true);
 
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
-    // 直接发请求
+    // 鐩存帴鍙戣姹?
     fetchSearchResults(trimmed);
 
-    // 保存到搜索历史 (事件监听会自动更新界面)
+    // 淇濆瓨鍒版悳绱㈠巻鍙?(浜嬩欢鐩戝惉浼氳嚜鍔ㄦ洿鏂扮晫闈?
     addSearchHistory(trimmed);
   };
 
   const clearSearch = () => {
     setSearchQuery('');
     setSearchResults([]);
+    setPersonResults([]);
+    setLegacySearchResults([]);
     setShowResults(false);
     router.replace('/search');
     const input = document.getElementById(
@@ -208,11 +258,11 @@ function SearchPageClient() {
 
 
   return (
-    <AuroraBackground className='h-auto min-h-screen items-stretch justify-start'>
-      <div className='relative z-10 w-full'>
+    <div className='min-h-screen w-full'>
+      <div className='relative w-full'>
         <PageLayout activePath='/search'>
           <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
-            {/* 搜索框 */}
+            {/* 鎼滅储妗?*/}
             <div className='mb-8'>
               <form onSubmit={handleSearch} className='max-w-2xl mx-auto'>
                 <div className='relative'>
@@ -222,7 +272,7 @@ function SearchPageClient() {
                     type='text'
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder='搜索电影、电视剧...'
+                    placeholder='搜索电影、剧集、人物...'
                     className='w-full h-12 rounded-lg bg-gray-50/80 py-3 pl-10 pr-12 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white border border-gray-200/50 shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:bg-gray-700 dark:border-gray-700'
                   />
                   {searchQuery && (
@@ -239,7 +289,7 @@ function SearchPageClient() {
               </form>
             </div>
 
-            {/* 搜索结果或搜索历史 */}
+            {/* 鎼滅储缁撴灉鎴栨悳绱㈠巻鍙?*/}
             <div className='max-w-[95%] mx-auto mt-12 overflow-visible'>
               {isLoading ? (
                 <div className='flex justify-center items-center h-40'>
@@ -247,12 +297,59 @@ function SearchPageClient() {
                 </div>
               ) : showResults ? (
                 <section className='mb-12'>
-                  {/* 标题 + 聚合开关 */}
+                  {personResults.length > 0 && (
+                    <div className='mb-10'>
+                      <h3 className='mb-4 text-lg font-semibold text-gray-800 dark:text-gray-200'>
+                        人物
+                      </h3>
+                      <div className='grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-4'>
+                        {personResults.map((person) => (
+                          <Link
+                            key={`person-${person.id}`}
+                            href={`/person/${person.id}`}
+                            className='group overflow-hidden rounded-xl border border-gray-200/70 bg-white/70 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:border-gray-700/60 dark:bg-gray-800/70'
+                          >
+                            <div className='relative aspect-[2/3] w-full overflow-hidden bg-gray-200 dark:bg-gray-700'>
+                              {person.profile ? (
+                                <Image
+                                  src={person.profile}
+                                  alt={person.name}
+                                  fill
+                                  unoptimized
+                                  className='object-cover transition-transform duration-300 group-hover:scale-105'
+                                />
+                              ) : (
+                                <div className='flex h-full w-full items-center justify-center text-sm text-gray-500 dark:text-gray-400'>
+                                  No profile
+                                </div>
+                              )}
+                            </div>
+                            <div className='space-y-1 p-3'>
+                              <p className='truncate text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                                {person.name}
+                              </p>
+                              {person.department && (
+                                <p className='truncate text-xs text-gray-500 dark:text-gray-400'>
+                                  {formatDepartment(person.department)}
+                                </p>
+                              )}
+                              {person.known_for.length > 0 && (
+                                <p className='line-clamp-2 text-xs text-gray-600 dark:text-gray-300'>
+                                  {person.known_for.join(' / ')}
+                                </p>
+                              )}
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 鏍囬 + 鑱氬悎寮€鍏?*/}
                   <div className='mb-8 flex items-center justify-between'>
                     <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
                       搜索结果
                     </h2>
-                    {/* 聚合开关 */}
+                    {/* 鑱氬悎寮€鍏?*/}
                     <label className='flex items-center gap-2 cursor-pointer select-none'>
                       <span className='text-sm text-gray-700 dark:text-gray-300'>
                         聚合
@@ -315,26 +412,87 @@ function SearchPageClient() {
                             />
                           </div>
                         ))}
-                    {searchResults.length === 0 && (
+                    {searchResults.length === 0 && legacySearchResults.length === 0 && (
                       <div className='col-span-full text-center text-gray-500 py-8 dark:text-gray-400'>
-                        未找到相关结果
+                        {personResults.length > 0
+                          ? 'No movie/tv results'
+                          : 'No matching results'}
                       </div>
                     )}
                   </div>
+
+                  {legacySearchResults.length > 0 && (
+                    <div className='mt-12'>
+                      <div className='mb-4 flex items-center justify-between'>
+                        <h3 className='text-lg font-semibold text-gray-800 dark:text-gray-200'>
+                          原搜索结果
+                        </h3>
+                        <span className='text-sm text-gray-500 dark:text-gray-400'>
+                          {viewMode === 'agg'
+                            ? aggregatedLegacyResults.length
+                            : legacySearchResults.length}{' '}
+                          条
+                        </span>
+                      </div>
+                      <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
+                        {viewMode === 'agg'
+                          ? aggregatedLegacyResults.map(([mapKey, group]) => (
+                              <div key={`legacy-agg-${mapKey}`} className='w-full'>
+                                <VideoCard
+                                  from='search'
+                                  items={group}
+                                  query={
+                                    searchQuery.trim() !== group[0].title
+                                      ? searchQuery.trim()
+                                      : ''
+                                  }
+                                />
+                              </div>
+                            ))
+                          : legacySearchResults.map((item, index) => (
+                              <div
+                                key={`legacy-all-${item.source}-${item.id}-${index}`}
+                                className='w-full'
+                              >
+                                <VideoCard
+                                  id={item.id}
+                                  title={
+                                    item.type_name
+                                      ? `${item.title} ${item.type_name}`
+                                      : item.title
+                                  }
+                                  poster={item.poster}
+                                  episodes={item.episodes.length}
+                                  source={item.source}
+                                  source_name={item.source_name}
+                                  douban_id={item.douban_id?.toString()}
+                                  query={
+                                    searchQuery.trim() !== item.title
+                                      ? searchQuery.trim()
+                                      : ''
+                                  }
+                                  year={item.year}
+                                  from='search'
+                                  type={item.episodes.length > 1 ? 'tv' : 'movie'}
+                                />
+                              </div>
+                            ))}
+                      </div>
+                    </div>
+                  )}
                 </section>
               ) : searchHistory.length > 0 ? (
-                // 搜索历史
+                // 鎼滅储鍘嗗彶
                 <section className='mb-12'>
                   <h2 className='mb-4 text-xl font-bold text-gray-800 text-left dark:text-gray-200'>
                     搜索历史
                     {/* {searchHistory.length > 0 && (
                   <button
                     onClick={() => {
-                      clearSearchHistory(); // 事件监听会自动更新界面
-                    }}
+                      clearSearchHistory(); // 浜嬩欢鐩戝惉浼氳嚜鍔ㄦ洿鏂扮晫闈?                    }}
                     className='ml-3 text-sm text-gray-500 hover:text-red-500 transition-colors dark:text-gray-400 dark:hover:text-red-500'
                   >
-                    清空
+                    娓呯┖
                   </button>
                 )} */}
                   </h2>
@@ -361,7 +519,7 @@ function SearchPageClient() {
           </div>
         </PageLayout>
       </div>
-    </AuroraBackground>
+    </div>
   );
 }
 
@@ -372,3 +530,5 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+
+

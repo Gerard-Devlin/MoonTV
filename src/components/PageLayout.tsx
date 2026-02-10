@@ -8,20 +8,23 @@ interface PageLayoutProps {
   children: React.ReactNode;
   activePath?: string;
   disableMobileTopPadding?: boolean;
+  forceShowBackButton?: boolean;
 }
 
 const PageLayout = ({
   children,
   activePath = '/',
   disableMobileTopPadding = false,
+  forceShowBackButton = false,
 }: PageLayoutProps) => {
   const isHomePage = activePath === '/';
+  const showBackButton = forceShowBackButton || ['/play'].includes(activePath);
 
   return (
     <div className='w-full min-h-screen'>
       <MobileNavController
         activePath={activePath}
-        showBackButton={['/play'].includes(activePath)}
+        showBackButton={showBackButton}
         useHeroHeaderStyle={isHomePage || disableMobileTopPadding}
       />
 
@@ -31,7 +34,7 @@ const PageLayout = ({
         </div>
 
         <div className='relative min-w-0 flex-1 transition-all duration-300'>
-          {['/play'].includes(activePath) && (
+          {showBackButton && (
             <div className='absolute top-3 left-1 z-20 hidden md:flex'>
               <BackButton />
             </div>
