@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, X } from 'lucide-react';
+import { Heart, History, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import type { Favorite, PlayRecord } from '@/lib/db.client';
@@ -298,7 +298,8 @@ export default function MyPage() {
               </div>
             </div>
             <div className='flex items-center justify-between'>
-              <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+              <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
+                <History className='h-5 w-5' />
                 {'\u6211\u7684\u5386\u53f2\u8bb0\u5f55'}
               </h2>
               {!loadingPlayRecords && playRecords.length > 0 ? (
@@ -435,7 +436,8 @@ export default function MyPage() {
               </div>
             </div>
             <div className='flex items-center justify-between'>
-              <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+              <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
+                <Heart className='h-5 w-5' />
                 {'\u6211\u7684\u6536\u85cf\u5939'}
               </h2>
               {!loadingFavorites && favoriteItems.length > 0 ? (
