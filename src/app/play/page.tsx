@@ -1637,7 +1637,7 @@ function PlayPageClient() {
     return (
       <PageLayout activePath='/play'>
         <div className='flex min-h-screen items-center justify-center bg-transparent px-6 py-12'>
-          <div className='w-full max-w-2xl rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70 sm:p-10'>
+          <div className='w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70 sm:p-10'>
             <div className='flex flex-col gap-5 text-center'>
               <div className='flex flex-col items-center gap-3'>
                 <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/15'>
@@ -1662,12 +1662,12 @@ function PlayPageClient() {
                         )
                       : router.back()
                   }
-                  className='group inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-200'
+                  className='group inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-700/90 bg-slate-800 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800'
                 >
                   {videoTitle ? (
-                    <Search className='h-4 w-4 text-black transition-transform duration-200 group-hover:scale-110' />
+                    <Search className='h-4 w-4 text-white transition-transform duration-200 group-hover:scale-110' />
                   ) : (
-                    <ArrowLeft className='h-4 w-4 text-indigo-500 transition-transform duration-200 group-hover:-translate-x-0.5' />
+                    <ArrowLeft className='h-4 w-4 text-white transition-transform duration-200 group-hover:-translate-x-0.5' />
                   )}
                   {videoTitle ? '返回搜索' : '返回上页'}
                 </button>

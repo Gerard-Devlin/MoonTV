@@ -1,10 +1,19 @@
-/* eslint-disable no-console,react-hooks/exhaustive-deps,@typescript-eslint/no-explicit-any */
-
 'use client';
 
+import {
+  CalendarRange,
+  Clock3,
+  Film,
+  Languages,
+  ListFilter,
+  RotateCcw,
+  Star,
+  Tags,
+  UsersRound,
+} from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getDoubanCategories, getDoubanList } from '@/lib/douban.client';
 import { DoubanItem, DoubanResult } from '@/lib/types';
@@ -16,37 +25,163 @@ import PageLayout from '@/components/PageLayout';
 import TmdbHeroBanner from '@/components/TmdbHeroBanner';
 import VideoCard from '@/components/VideoCard';
 
+interface GenreOption {
+  id: number;
+  label: string;
+}
+
+interface DiscoverApiResponse {
+  code: number;
+  message: string;
+  list: DoubanItem[];
+  page: number;
+  total_pages: number;
+  total_results: number;
+}
+
+interface FilterState {
+  releaseYearMin: string;
+  releaseYearMax: string;
+  selectedGenres: number[];
+  language: string;
+  ratingMin: string;
+  ratingMax: string;
+  minVoteCount: string;
+  runtimeMin: string;
+  runtimeMax: string;
+}
+
+const PAGE_SIZE_HINT = 20;
+const MIN_RELEASE_YEAR = 1950;
+const CURRENT_YEAR = new Date().getFullYear();
+const MAX_RUNTIME_MINUTES = 360;
+const MIN_RATING = 0;
+const MAX_RATING = 10;
+
+const GENRE_OPTIONS: GenreOption[] = [
+  { id: 12, label: '冒险' },
+  { id: 18, label: '剧情' },
+  { id: 28, label: '动作' },
+  { id: 16, label: '动画' },
+  { id: 36, label: '历史' },
+  { id: 35, label: '喜剧' },
+  { id: 14, label: '奇幻' },
+  { id: 10751, label: '家庭' },
+  { id: 27, label: '恐怖' },
+  { id: 9648, label: '悬疑' },
+  { id: 53, label: '惊悚' },
+  { id: 10752, label: '战争' },
+  { id: 10749, label: '爱情' },
+  { id: 80, label: '犯罪' },
+  { id: 10770, label: '电视电影' },
+  { id: 878, label: '科幻' },
+  { id: 99, label: '纪录' },
+  { id: 37, label: '西部' },
+  { id: 10402, label: '音乐' },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: '', label: '未选择' },
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: '英语' },
+  { value: 'ja', label: '日语' },
+  { value: 'ko', label: '韩语' },
+  { value: 'fr', label: '法语' },
+  { value: 'de', label: '德语' },
+  { value: 'es', label: '西语' },
+];
+
+const DEFAULT_FILTERS: FilterState = {
+  releaseYearMin: String(MIN_RELEASE_YEAR),
+  releaseYearMax: String(CURRENT_YEAR),
+  selectedGenres: [],
+  language: '',
+  ratingMin: String(MIN_RATING),
+  ratingMax: String(MAX_RATING),
+  minVoteCount: '',
+  runtimeMin: '0',
+  runtimeMax: String(MAX_RUNTIME_MINUTES),
+};
+
+function normalizeType(
+  value: string | null
+): 'movie' | 'tv' | 'show' | 'custom' {
+  if (value === 'tv') return 'tv';
+  if (value === 'show') return 'show';
+  if (value === 'custom') return 'custom';
+  return 'movie';
+}
+
+function getPageTitle(type: 'movie' | 'tv' | 'show' | 'custom'): string {
+  if (type === 'tv') return '剧集';
+  if (type === 'show') return '综艺';
+  if (type === 'custom') return '自定义';
+  return '电影';
+}
+
+function parseNumberLike(value: string): string {
+  const next = value.trim();
+  if (!next) return '';
+  const parsed = Number(next);
+  if (!Number.isFinite(parsed) || parsed < 0) return '';
+  return String(parsed);
+}
+
+const RANGE_INPUT_CLASS =
+  'pointer-events-none absolute inset-0 h-8 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#8C97A8] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[#8C97A8]';
+
 function DoubanPageClient() {
   const searchParams = useSearchParams();
-  const [doubanData, setDoubanData] = useState<DoubanItem[]>([]);
+  const type = normalizeType(searchParams.get('type'));
+  const media = type === 'movie' || type === 'custom' ? 'movie' : 'tv';
+  const hasTopHero = type === 'movie' || type === 'tv';
+  const isTmdbType = type === 'movie' || type === 'tv';
+
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [items, setItems] = useState<DoubanItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [selectorsReady, setSelectorsReady] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const loadingRef = useRef<HTMLDivElement>(null);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingRef = useRef<HTMLDivElement | null>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  const type = searchParams.get('type') || 'movie';
+  const customObserverRef = useRef<IntersectionObserver | null>(null);
+  const customLoadingRef = useRef<HTMLDivElement | null>(null);
+  const customDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 获取 runtimeConfig 中的自定义分类数据
   const [customCategories, setCustomCategories] = useState<
     Array<{ name: string; type: 'movie' | 'tv'; query: string }>
   >([]);
+  const [customPrimarySelection, setCustomPrimarySelection] = useState('');
+  const [customSecondarySelection, setCustomSecondarySelection] = useState('');
+  const [customItems, setCustomItems] = useState<DoubanItem[]>([]);
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customLoadingMore, setCustomLoadingMore] = useState(false);
+  const [customCurrentPage, setCustomCurrentPage] = useState(0);
+  const [customHasMore, setCustomHasMore] = useState(true);
 
-  // 选择器状态 - 完全独立，不依赖URL参数
-  const [primarySelection, setPrimarySelection] = useState<string>(() => {
-    return type === 'movie' ? '热门' : '';
-  });
-  const [secondarySelection, setSecondarySelection] = useState<string>(() => {
-    if (type === 'movie') return '全部';
-    if (type === 'tv') return 'tv';
-    if (type === 'show') return 'show';
-    return '全部';
-  });
+  const showObserverRef = useRef<IntersectionObserver | null>(null);
+  const showLoadingRef = useRef<HTMLDivElement | null>(null);
+  const showDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [showSelection, setShowSelection] = useState('show');
+  const [showItems, setShowItems] = useState<DoubanItem[]>([]);
+  const [showLoading, setShowLoading] = useState(false);
+  const [showLoadingMore, setShowLoadingMore] = useState(false);
+  const [showCurrentPage, setShowCurrentPage] = useState(0);
+  const [showHasMore, setShowHasMore] = useState(true);
 
-  // 获取自定义分类数据
+  useEffect(() => {
+    setFilters(DEFAULT_FILTERS);
+    if (type === 'show') {
+      setShowSelection('show');
+    }
+  }, [type]);
+
   useEffect(() => {
     const runtimeConfig = (window as any).RUNTIME_CONFIG;
     if (runtimeConfig?.CUSTOM_CATEGORIES?.length > 0) {
@@ -54,253 +189,233 @@ function DoubanPageClient() {
     }
   }, []);
 
-  // 初始化时标记选择器为准备好状态
   useEffect(() => {
-    // 短暂延迟确保初始状态设置完成
-    const timer = setTimeout(() => {
-      setSelectorsReady(true);
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, []); // 只在组件挂载时执行一次
-
-  // type变化时立即重置selectorsReady（最高优先级）
-  useEffect(() => {
-    setSelectorsReady(false);
-    setLoading(true); // 立即显示loading状态
-  }, [type]);
-
-  // 当type变化时重置选择器状态
-  useEffect(() => {
-    if (type === 'custom' && customCategories.length > 0) {
-      // 自定义分类模式：优先选择 movie，如果没有 movie 则选择 tv
-      const types = Array.from(
-        new Set(customCategories.map((cat) => cat.type))
-      );
-      if (types.length > 0) {
-        // 优先选择 movie，如果没有 movie 则选择 tv
-        let selectedType = types[0]; // 默认选择第一个
-        if (types.includes('movie')) {
-          selectedType = 'movie';
-        } else {
-          selectedType = 'tv';
-        }
-        setPrimarySelection(selectedType);
-
-        // 设置选中类型的第一个分类的 query 作为二级选择
-        const firstCategory = customCategories.find(
-          (cat) => cat.type === selectedType
-        );
-        if (firstCategory) {
-          setSecondarySelection(firstCategory.query);
-        }
-      }
-    } else {
-      // 原有逻辑
-      if (type === 'movie') {
-        setPrimarySelection('热门');
-        setSecondarySelection('全部');
-      } else if (type === 'tv') {
-        setPrimarySelection('');
-        setSecondarySelection('tv');
-      } else if (type === 'show') {
-        setPrimarySelection('');
-        setSecondarySelection('show');
-      } else {
-        setPrimarySelection('');
-        setSecondarySelection('全部');
-      }
+    if (type !== 'custom') return;
+    if (!customCategories.length) {
+      setCustomPrimarySelection('');
+      setCustomSecondarySelection('');
+      setCustomItems([]);
+      setCustomHasMore(false);
+      return;
     }
 
-    // 使用短暂延迟确保状态更新完成后标记选择器准备好
-    const timer = setTimeout(() => {
-      setSelectorsReady(true);
-    }, 50);
-
-    return () => clearTimeout(timer);
+    const types = Array.from(new Set(customCategories.map((cat) => cat.type)));
+    const preferredType = types.includes('movie')
+      ? 'movie'
+      : (types[0] as 'movie' | 'tv');
+    const firstCategory = customCategories.find(
+      (cat) => cat.type === preferredType
+    );
+    setCustomPrimarySelection(preferredType);
+    setCustomSecondarySelection(firstCategory?.query || '');
   }, [type, customCategories]);
 
-  // 生成骨架屏数据
-  const skeletonData = Array.from({ length: 25 }, (_, index) => index);
-
-  // 生成API请求参数的辅助函数
-  const getRequestParams = useCallback(
-    (pageStart: number) => {
-      // 当type为tv或show时，kind统一为'tv'，category使用type本身
-      if (type === 'tv' || type === 'show') {
-        return {
-          kind: 'tv' as const,
-          category: type,
-          type: secondarySelection,
-          pageLimit: 25,
-          pageStart,
-        };
-      }
-
-      // 电影类型保持原逻辑
-      return {
-        kind: type as 'tv' | 'movie',
-        category: primarySelection,
-        type: secondarySelection,
-        pageLimit: 25,
-        pageStart,
-      };
-    },
-    [type, primarySelection, secondarySelection]
+  const mergedGenres = useMemo(
+    () => Array.from(new Set([...filters.selectedGenres])),
+    [filters.selectedGenres]
   );
 
-  // 防抖的数据加载函数
-  const loadInitialData = useCallback(async () => {
-    try {
-      setLoading(true);
-      let data: DoubanResult;
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('media', media);
+    params.set('include_adult', 'false');
 
-      if (type === 'custom') {
-        // 自定义分类模式：根据选中的一级和二级选项获取对应的分类
-        const selectedCategory = customCategories.find(
-          (cat) =>
-            cat.type === primarySelection && cat.query === secondarySelection
-        );
-
-        if (selectedCategory) {
-          data = await getDoubanList({
-            tag: selectedCategory.query,
-            type: selectedCategory.type,
-            pageLimit: 25,
-            pageStart: 0,
-          });
-        } else {
-          throw new Error('没有找到对应的分类');
-        }
-      } else {
-        data = await getDoubanCategories(getRequestParams(0));
-      }
-
-      if (data.code === 200) {
-        setDoubanData(data.list);
-        setHasMore(data.list.length === 25);
-        setLoading(false);
-      } else {
-        throw new Error(data.message || '获取数据失败');
-      }
-    } catch (err) {
-      console.error(err);
+    const releaseYearMin = Number(filters.releaseYearMin);
+    const releaseYearMax = Number(filters.releaseYearMax);
+    if (Number.isInteger(releaseYearMin) && releaseYearMin > MIN_RELEASE_YEAR) {
+      params.set('release_from', `${releaseYearMin}-01-01`);
     }
-  }, [
-    type,
-    primarySelection,
-    secondarySelection,
-    getRequestParams,
-    customCategories,
-  ]);
-
-  // 只在选择器准备好后才加载数据
-  useEffect(() => {
-    // 只有在选择器准备好时才开始加载
-    if (!selectorsReady) {
-      return;
+    if (Number.isInteger(releaseYearMax) && releaseYearMax < CURRENT_YEAR) {
+      params.set('release_to', `${releaseYearMax}-12-31`);
+    }
+    if (mergedGenres.length > 0)
+      params.set('with_genres', mergedGenres.join(','));
+    if (filters.language) params.set('language', filters.language);
+    const ratingMin = Number(
+      parseNumberLike(filters.ratingMin) || String(MIN_RATING)
+    );
+    const ratingMax = Number(
+      parseNumberLike(filters.ratingMax) || String(MAX_RATING)
+    );
+    if (ratingMin > MIN_RATING) {
+      params.set('vote_average_gte', String(ratingMin));
+    }
+    if (ratingMax < MAX_RATING) {
+      params.set('vote_average_lte', String(ratingMax));
+    }
+    if (parseNumberLike(filters.minVoteCount)) {
+      params.set('vote_count_gte', parseNumberLike(filters.minVoteCount));
+    }
+    const runtimeMin = Number(parseNumberLike(filters.runtimeMin) || '0');
+    const runtimeMax = Number(
+      parseNumberLike(filters.runtimeMax) || String(MAX_RUNTIME_MINUTES)
+    );
+    if (runtimeMin > 0) {
+      params.set('runtime_gte', String(runtimeMin));
+    }
+    if (runtimeMax < MAX_RUNTIME_MINUTES) {
+      params.set('runtime_lte', String(runtimeMax));
     }
 
-    // 重置页面状态
-    setDoubanData([]);
-    setCurrentPage(0);
-    setHasMore(true);
-    setIsLoadingMore(false);
+    return params.toString();
+  }, [filters, media, mergedGenres]);
 
-    // 清除之前的防抖定时器
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-
-    // 使用防抖机制加载数据，避免连续状态更新触发多次请求
-    debounceTimeoutRef.current = setTimeout(() => {
-      loadInitialData();
-    }, 100); // 100ms 防抖延迟
-
-    // 清理函数
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-    };
-  }, [
-    selectorsReady,
-    type,
-    primarySelection,
-    secondarySelection,
-    loadInitialData,
-  ]);
-
-  // 单独处理 currentPage 变化（加载更多）
-  useEffect(() => {
-    if (currentPage > 0) {
-      const fetchMoreData = async () => {
-        try {
+  const fetchPage = useCallback(
+    async (page: number, append: boolean) => {
+      try {
+        if (append) {
           setIsLoadingMore(true);
-
-          let data: DoubanResult;
-          if (type === 'custom') {
-            // 自定义分类模式：根据选中的一级和二级选项获取对应的分类
-            const selectedCategory = customCategories.find(
-              (cat) =>
-                cat.type === primarySelection &&
-                cat.query === secondarySelection
-            );
-
-            if (selectedCategory) {
-              data = await getDoubanList({
-                tag: selectedCategory.query,
-                type: selectedCategory.type,
-                pageLimit: 25,
-                pageStart: currentPage * 25,
-              });
-            } else {
-              throw new Error('没有找到对应的分类');
-            }
-          } else {
-            data = await getDoubanCategories(
-              getRequestParams(currentPage * 25)
-            );
-          }
-
-          if (data.code === 200) {
-            setDoubanData((prev) => [...prev, ...data.list]);
-            setHasMore(data.list.length === 25);
-          } else {
-            throw new Error(data.message || '获取数据失败');
-          }
-        } catch (err) {
-          console.error(err);
-        } finally {
-          setIsLoadingMore(false);
+        } else {
+          setLoading(true);
         }
-      };
 
-      fetchMoreData();
-    }
-  }, [
-    currentPage,
-    type,
-    primarySelection,
-    secondarySelection,
-    customCategories,
-  ]);
+        const params = new URLSearchParams(queryString);
+        params.set('page', String(page));
 
-  // 设置滚动监听
+        const response = await fetch(`/api/tmdb/discover?${params.toString()}`);
+        const data = (await response.json()) as DiscoverApiResponse;
+
+        if (!response.ok || data.code !== 200) {
+          throw new Error(data.message || '获取 TMDB 数据失败');
+        }
+
+        setItems((prev) => (append ? [...prev, ...data.list] : data.list));
+        setCurrentPage(data.page || page);
+        setTotalPages(data.total_pages || 1);
+        setTotalResults(data.total_results || 0);
+        setHasMore((data.page || page) < (data.total_pages || 1));
+      } catch {
+        if (!append) {
+          setItems([]);
+          setHasMore(false);
+        }
+      } finally {
+        setLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [queryString]
+  );
+
+  const loadCustomPage = useCallback(
+    async (page: number, append: boolean) => {
+      const selectedCategory = customCategories.find(
+        (cat) =>
+          cat.type === customPrimarySelection &&
+          cat.query === customSecondarySelection
+      );
+      if (!selectedCategory) {
+        if (!append) {
+          setCustomItems([]);
+          setCustomHasMore(false);
+          setCustomLoading(false);
+        }
+        return;
+      }
+
+      try {
+        if (append) {
+          setCustomLoadingMore(true);
+        } else {
+          setCustomLoading(true);
+        }
+
+        const data: DoubanResult = await getDoubanList({
+          tag: selectedCategory.query,
+          type: selectedCategory.type,
+          pageLimit: 25,
+          pageStart: page * 25,
+        });
+
+        if (data.code !== 200) {
+          throw new Error(data.message || '获取自定义分类失败');
+        }
+
+        setCustomItems((prev) =>
+          append ? [...prev, ...data.list] : data.list
+        );
+        setCustomHasMore(data.list.length === 25);
+      } catch {
+        if (!append) {
+          setCustomItems([]);
+          setCustomHasMore(false);
+        }
+      } finally {
+        setCustomLoading(false);
+        setCustomLoadingMore(false);
+      }
+    },
+    [customCategories, customPrimarySelection, customSecondarySelection]
+  );
+
+  const loadShowPage = useCallback(
+    async (page: number, append: boolean) => {
+      try {
+        if (append) {
+          setShowLoadingMore(true);
+        } else {
+          setShowLoading(true);
+        }
+
+        const data: DoubanResult = await getDoubanCategories({
+          kind: 'tv',
+          category: 'show',
+          type: showSelection || 'show',
+          pageLimit: 25,
+          pageStart: page * 25,
+        });
+
+        if (data.code !== 200) {
+          throw new Error(data.message || '获取综艺分类失败');
+        }
+
+        setShowItems((prev) => (append ? [...prev, ...data.list] : data.list));
+        setShowHasMore(data.list.length === 25);
+      } catch {
+        if (!append) {
+          setShowItems([]);
+          setShowHasMore(false);
+        }
+      } finally {
+        setShowLoading(false);
+        setShowLoadingMore(false);
+      }
+    },
+    [showSelection]
+  );
+
   useEffect(() => {
-    // 如果没有更多数据或正在加载，则不设置监听
-    if (!hasMore || isLoadingMore || loading) {
-      return;
-    }
+    if (!isTmdbType) return;
+    setItems([]);
+    setCurrentPage(1);
+    setTotalPages(1);
+    setTotalResults(0);
+    setHasMore(true);
 
-    // 确保 loadingRef 存在
-    if (!loadingRef.current) {
-      return;
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchPage(1, false);
+    }, 200);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [fetchPage, isTmdbType]);
+
+  useEffect(() => {
+    if (!isTmdbType) return;
+    if (currentPage <= 1) return;
+    fetchPage(currentPage, true);
+  }, [currentPage, fetchPage, isTmdbType]);
+
+  useEffect(() => {
+    if (!isTmdbType) return;
+    if (!loadingRef.current || !hasMore || loading || isLoadingMore) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+        if (!entries[0]?.isIntersecting) return;
+        if (hasMore && !isLoadingMore) {
           setCurrentPage((prev) => prev + 1);
         }
       },
@@ -310,183 +425,631 @@ function DoubanPageClient() {
     observer.observe(loadingRef.current);
     observerRef.current = observer;
 
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, loading, isTmdbType]);
+
+  useEffect(() => {
+    if (type !== 'custom') return;
+    if (!customPrimarySelection || !customSecondarySelection) return;
+
+    setCustomItems([]);
+    setCustomCurrentPage(0);
+    setCustomHasMore(true);
+    setCustomLoadingMore(false);
+
+    if (customDebounceRef.current) clearTimeout(customDebounceRef.current);
+    customDebounceRef.current = setTimeout(() => {
+      loadCustomPage(0, false);
+    }, 100);
+
     return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
+      if (customDebounceRef.current) clearTimeout(customDebounceRef.current);
     };
-  }, [hasMore, isLoadingMore, loading]);
+  }, [type, customPrimarySelection, customSecondarySelection, loadCustomPage]);
 
-  // 处理选择器变化
-  const handlePrimaryChange = useCallback(
-    (value: string) => {
-      // 只有当值真正改变时才设置loading状态
-      if (value !== primarySelection) {
-        setLoading(true);
+  useEffect(() => {
+    if (type !== 'custom') return;
+    if (customCurrentPage <= 0) return;
+    loadCustomPage(customCurrentPage, true);
+  }, [type, customCurrentPage, loadCustomPage]);
 
-        // 如果是自定义分类模式，同时更新一级和二级选择器
-        if (type === 'custom' && customCategories.length > 0) {
-          const firstCategory = customCategories.find(
-            (cat) => cat.type === value
-          );
-          if (firstCategory) {
-            // 批量更新状态，避免多次触发数据加载
-            setPrimarySelection(value);
-            setSecondarySelection(firstCategory.query);
-          } else {
-            setPrimarySelection(value);
-          }
-        } else {
-          setPrimarySelection(value);
+  useEffect(() => {
+    if (type !== 'custom') return;
+    if (
+      !customLoadingRef.current ||
+      !customHasMore ||
+      customLoading ||
+      customLoadingMore
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        if (customHasMore && !customLoadingMore) {
+          setCustomCurrentPage((prev) => prev + 1);
         }
-      }
-    },
-    [primarySelection, type, customCategories]
-  );
+      },
+      { threshold: 0.1 }
+    );
 
-  const handleSecondaryChange = useCallback(
+    observer.observe(customLoadingRef.current);
+    customObserverRef.current = observer;
+
+    return () => observer.disconnect();
+  }, [type, customHasMore, customLoading, customLoadingMore]);
+
+  useEffect(() => {
+    if (type !== 'show') return;
+
+    setShowItems([]);
+    setShowCurrentPage(0);
+    setShowHasMore(true);
+    setShowLoadingMore(false);
+
+    if (showDebounceRef.current) clearTimeout(showDebounceRef.current);
+    showDebounceRef.current = setTimeout(() => {
+      loadShowPage(0, false);
+    }, 100);
+
+    return () => {
+      if (showDebounceRef.current) clearTimeout(showDebounceRef.current);
+    };
+  }, [type, showSelection, loadShowPage]);
+
+  useEffect(() => {
+    if (type !== 'show') return;
+    if (showCurrentPage <= 0) return;
+    loadShowPage(showCurrentPage, true);
+  }, [type, showCurrentPage, loadShowPage]);
+
+  useEffect(() => {
+    if (type !== 'show') return;
+    if (
+      !showLoadingRef.current ||
+      !showHasMore ||
+      showLoading ||
+      showLoadingMore
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        if (showHasMore && !showLoadingMore) {
+          setShowCurrentPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(showLoadingRef.current);
+    showObserverRef.current = observer;
+
+    return () => observer.disconnect();
+  }, [type, showHasMore, showLoading, showLoadingMore]);
+
+  const toggleGenre = useCallback((genreId: number) => {
+    setFilters((prev) => {
+      const exists = prev.selectedGenres.includes(genreId);
+      const nextGenres = exists
+        ? prev.selectedGenres.filter((id) => id !== genreId)
+        : [...prev.selectedGenres, genreId];
+      return { ...prev, selectedGenres: nextGenres };
+    });
+  }, []);
+
+  const handleCustomPrimaryChange = useCallback(
     (value: string) => {
-      // 只有当值真正改变时才设置loading状态
-      if (value !== secondarySelection) {
-        setLoading(true);
-        setSecondarySelection(value);
+      if (value === customPrimarySelection) return;
+      setCustomLoading(true);
+      setCustomPrimarySelection(value);
+      const firstCategory = customCategories.find((cat) => cat.type === value);
+      if (firstCategory) {
+        setCustomSecondarySelection(firstCategory.query);
       }
     },
-    [secondarySelection]
+    [customCategories, customPrimarySelection]
   );
 
-  const getPageTitle = () => {
-    // 根据 type 生成标题
-    return type === 'movie'
-      ? '电影'
-      : type === 'tv'
-      ? '电视剧'
-      : type === 'show'
-      ? '综艺'
-      : '自定义';
-  };
+  const handleCustomSecondaryChange = useCallback(
+    (value: string) => {
+      if (value === customSecondarySelection) return;
+      setCustomLoading(true);
+      setCustomSecondarySelection(value);
+    },
+    [customSecondarySelection]
+  );
 
-  const getActivePath = () => {
+  const handleShowSecondaryChange = useCallback(
+    (value: string) => {
+      if (value === showSelection) return;
+      setShowLoading(true);
+      setShowSelection(value);
+    },
+    [showSelection]
+  );
+
+  const activePath = useMemo(() => {
     const params = new URLSearchParams();
-    if (type) params.set('type', type);
+    params.set('type', type);
+    return `/douban?${params.toString()}`;
+  }, [type]);
 
-    const queryString = params.toString();
-    const activePath = `/douban${queryString ? `?${queryString}` : ''}`;
-    return activePath;
-  };
+  const skeletonData = useMemo(
+    () => Array.from({ length: PAGE_SIZE_HINT }, (_, index) => index),
+    []
+  );
 
-  const hasTopHero = type === 'movie' || type === 'tv';
+  const releaseMinValue = Number(filters.releaseYearMin || MIN_RELEASE_YEAR);
+  const releaseMaxValue = Number(filters.releaseYearMax || CURRENT_YEAR);
+  const releaseLeft =
+    ((releaseMinValue - MIN_RELEASE_YEAR) / (CURRENT_YEAR - MIN_RELEASE_YEAR)) *
+    100;
+  const releaseRight =
+    100 -
+    ((releaseMaxValue - MIN_RELEASE_YEAR) / (CURRENT_YEAR - MIN_RELEASE_YEAR)) *
+      100;
+  const releaseMidYear = Math.floor((MIN_RELEASE_YEAR + CURRENT_YEAR) / 2);
 
+  const ratingMinValue = Number(filters.ratingMin || MIN_RATING);
+  const ratingMaxValue = Number(filters.ratingMax || MAX_RATING);
+  const ratingLeft =
+    ((ratingMinValue - MIN_RATING) / (MAX_RATING - MIN_RATING)) * 100;
+  const ratingRight =
+    100 - ((ratingMaxValue - MIN_RATING) / (MAX_RATING - MIN_RATING)) * 100;
+
+  const runtimeMinValue = Number(filters.runtimeMin || 0);
+  const runtimeMaxValue = Number(filters.runtimeMax || MAX_RUNTIME_MINUTES);
+  const runtimeLeft = (runtimeMinValue / MAX_RUNTIME_MINUTES) * 100;
+  const runtimeRight = 100 - (runtimeMaxValue / MAX_RUNTIME_MINUTES) * 100;
   return (
-    <PageLayout
-      activePath={getActivePath()}
-      disableMobileTopPadding={hasTopHero}
-    >
+    <PageLayout activePath={activePath} disableMobileTopPadding={hasTopHero}>
       <div
         className={`overflow-visible ${
           hasTopHero
-            ? 'px-0 sm:px-10 pb-4 sm:pb-8'
-            : 'px-4 sm:px-10 py-4 sm:py-8'
+            ? 'px-0 pb-4 sm:px-10 sm:pb-8'
+            : 'px-4 py-4 sm:px-10 sm:py-8'
         }`}
       >
-        {hasTopHero && (
+        {hasTopHero ? (
           <div className='px-2 sm:px-0'>
-            <TmdbHeroBanner mediaFilter={type === 'movie' ? 'movie' : 'tv'} />
+            <TmdbHeroBanner mediaFilter={media} />
           </div>
-        )}
+        ) : null}
 
         <div className={hasTopHero ? 'px-4 sm:px-0' : ''}>
-
-        {/* 页面标题和选择器 */}
-        <div className='mb-6 sm:mb-8 space-y-4 sm:space-y-6'>
-          {/* 页面标题 */}
-          <div>
-            <h1 className='text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 dark:text-gray-200'>
-              {getPageTitle()}
-            </h1>
-            <p className='text-sm sm:text-base text-gray-600 dark:text-gray-400'>
-              来自豆瓣的精选内容
-            </p>
-          </div>
-
-          {/* 选择器组件 */}
-          {type !== 'custom' ? (
-            <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm'>
-              <DoubanSelector
-                type={type as 'movie' | 'tv' | 'show'}
-                primarySelection={primarySelection}
-                secondarySelection={secondarySelection}
-                onPrimaryChange={handlePrimaryChange}
-                onSecondaryChange={handleSecondaryChange}
-              />
+          <div className='mb-6 space-y-4 sm:mb-8 sm:space-y-6'>
+            <div className='space-y-1'>
+              <h1 className='text-2xl font-bold text-gray-800 dark:text-gray-200 sm:text-3xl'>
+                {getPageTitle(type)}
+              </h1>
             </div>
-          ) : (
-            <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm'>
-              <DoubanCustomSelector
-                customCategories={customCategories}
-                primarySelection={primarySelection}
-                secondarySelection={secondarySelection}
-                onPrimaryChange={handlePrimaryChange}
-                onSecondaryChange={handleSecondaryChange}
-              />
-            </div>
-          )}
-        </div>
 
-        {/* 内容展示区域 */}
-        <div className='max-w-[95%] mx-auto mt-8 overflow-visible'>
-          {/* 内容网格 */}
-          <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-12 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20'>
-            {loading || !selectorsReady
-              ? // 显示骨架屏
-                skeletonData.map((index) => <DoubanCardSkeleton key={index} />)
-              : // 显示实际数据
-                doubanData.map((item, index) => (
-                  <div key={`${item.title}-${index}`} className='w-full'>
-                    <VideoCard
-                      from='douban'
-                      title={item.title}
-                      poster={item.poster}
-                      douban_id={item.id}
-                      rate={item.rate}
-                      year={item.year}
-                      type={type === 'movie' ? 'movie' : ''} // 电影类型严格控制，tv 不控
-                    />
+            <div className='rounded-2xl border border-gray-200/60 bg-white/75 p-4 backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-900/50 sm:p-6'>
+              {type === 'custom' ? (
+                <>
+                  <div className='mb-4 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                    <Film className='h-4 w-4' />
+                    自定义分类
                   </div>
-                ))}
-          </div>
+                  <DoubanCustomSelector
+                    customCategories={customCategories}
+                    primarySelection={customPrimarySelection}
+                    secondarySelection={customSecondarySelection}
+                    onPrimaryChange={handleCustomPrimaryChange}
+                    onSecondaryChange={handleCustomSecondaryChange}
+                  />
+                </>
+              ) : type === 'show' ? (
+                <>
+                  <div className='mb-4 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                    <Film className='h-4 w-4' />
+                    综艺分类
+                  </div>
+                  <DoubanSelector
+                    type='show'
+                    primarySelection=''
+                    secondarySelection={showSelection}
+                    onPrimaryChange={() => undefined}
+                    onSecondaryChange={handleShowSecondaryChange}
+                  />
+                </>
+              ) : (
+                <>
+                  <div className='mb-4 flex items-center justify-between'>
+                    <div className='flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-200'>
+                      <ListFilter className='h-5 w-5' />
+                      高级筛选
+                    </div>
+                    <button
+                      type='button'
+                      onClick={() => setFilters(DEFAULT_FILTERS)}
+                      className='inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300'
+                    >
+                      <RotateCcw className='h-3.5 w-3.5' />
+                      重置
+                    </button>
+                  </div>
 
-          {/* 加载更多指示器 */}
-          {hasMore && !loading && (
-            <div
-              ref={(el) => {
-                if (el && el.offsetParent !== null) {
-                  (
-                    loadingRef as React.MutableRefObject<HTMLDivElement | null>
-                  ).current = el;
-                }
-              }}
-              className='flex justify-center mt-12 py-8'
-            >
-              {isLoadingMore && (
-                <div className='flex items-center gap-2'>
-                  <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500'></div>
-                  <span className='text-gray-600'>加载中...</span>
-                </div>
+                  <div className='space-y-4'>
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
+                        <CalendarRange className='h-4 w-4' />
+                        发行日期
+                      </div>
+                  <div className='w-full'>
+                        <div className='mb-1 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300'>
+                          <span>{releaseMinValue}</span>
+                          <span>{releaseMaxValue}</span>
+                        </div>
+                        <div className='relative h-8'>
+                          <div className='absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gray-200 dark:bg-gray-700' />
+                          <div
+                            className='absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#8C97A8]'
+                            style={{
+                              left: `${releaseLeft}%`,
+                              right: `${releaseRight}%`,
+                            }}
+                          />
+                          <input
+                            type='range'
+                            min={MIN_RELEASE_YEAR}
+                            max={CURRENT_YEAR}
+                            step='1'
+                            value={releaseMinValue}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setFilters((prev) => ({
+                                ...prev,
+                                releaseYearMin: String(
+                                  Math.min(next, Number(prev.releaseYearMax))
+                                ),
+                              }));
+                            }}
+                            className={`${RANGE_INPUT_CLASS} z-20`}
+                          />
+                          <input
+                            type='range'
+                            min={MIN_RELEASE_YEAR}
+                            max={CURRENT_YEAR}
+                            step='1'
+                            value={releaseMaxValue}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setFilters((prev) => ({
+                                ...prev,
+                                releaseYearMax: String(
+                                  Math.max(next, Number(prev.releaseYearMin))
+                                ),
+                              }));
+                            }}
+                            className={`${RANGE_INPUT_CLASS} z-30`}
+                          />
+                        </div>
+                        <div className='mt-1 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400'>
+                          <span>{MIN_RELEASE_YEAR}</span>
+                          <span>{releaseMidYear}</span>
+                          <span>{CURRENT_YEAR}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0 sm:pt-1'>
+                        <Tags className='h-4 w-4' />
+                        类型
+                      </div>
+                      <div className='flex flex-wrap gap-2'>
+                        {GENRE_OPTIONS.map((genre) => {
+                          const active = filters.selectedGenres.includes(
+                            genre.id
+                          );
+                          return (
+                            <button
+                              key={genre.id}
+                              type='button'
+                              aria-pressed={active}
+                              onClick={() => toggleGenre(genre.id)}
+                              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                active
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {genre.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
+                        <Languages className='h-4 w-4' />
+                        语言
+                      </div>
+                      <select
+                        value={filters.language}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            language: e.target.value,
+                          }))
+                        }
+                        className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-base outline-none ring-0 transition focus:border-gray-400 dark:border-gray-700 dark:bg-gray-800 sm:max-w-xs'
+                      >
+                        {LANGUAGE_OPTIONS.map((option) => (
+                          <option
+                            key={option.value || 'none'}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
+                        <Star className='h-4 w-4' />
+                        用户评分
+                      </div>
+                  <div className='w-full'>
+                        <div className='mb-1 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300'>
+                          <span>{ratingMinValue}</span>
+                          <span>{ratingMaxValue}</span>
+                        </div>
+                        <div className='relative h-8'>
+                          <div className='absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gray-200 dark:bg-gray-700' />
+                          <div
+                            className='absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#8C97A8]'
+                            style={{
+                              left: `${ratingLeft}%`,
+                              right: `${ratingRight}%`,
+                            }}
+                          />
+                          <input
+                            type='range'
+                            min={MIN_RATING}
+                            max={MAX_RATING}
+                            step='0.5'
+                            value={ratingMinValue}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setFilters((prev) => ({
+                                ...prev,
+                                ratingMin: String(
+                                  Math.min(next, Number(prev.ratingMax))
+                                ),
+                              }));
+                            }}
+                            className={`${RANGE_INPUT_CLASS} z-20`}
+                          />
+                          <input
+                            type='range'
+                            min={MIN_RATING}
+                            max={MAX_RATING}
+                            step='0.5'
+                            value={ratingMaxValue}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setFilters((prev) => ({
+                                ...prev,
+                                ratingMax: String(
+                                  Math.max(next, Number(prev.ratingMin))
+                                ),
+                              }));
+                            }}
+                            className={`${RANGE_INPUT_CLASS} z-30`}
+                          />
+                        </div>
+                        <div className='mt-1 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400'>
+                          <span>0</span>
+                          <span>5</span>
+                          <span>10</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
+                        <UsersRound className='h-4 w-4' />
+                        最少人数投票
+                      </div>
+                      <input
+                        type='number'
+                        min='0'
+                        step='1'
+                        value={filters.minVoteCount}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            minVoteCount: e.target.value,
+                          }))
+                        }
+                        placeholder='如 500'
+                        className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-base outline-none transition focus:border-gray-400 dark:border-gray-700 dark:bg-gray-800 sm:max-w-xs'
+                      />
+                    </div>
+
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
+                        <Clock3 className='h-4 w-4' />
+                        时长
+                      </div>
+                  <div className='w-full'>
+                        <div className='mb-1 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300'>
+                          <span>{runtimeMinValue} 分钟</span>
+                          <span>{runtimeMaxValue} 分钟</span>
+                        </div>
+                        <div className='relative h-8'>
+                          <div className='absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gray-200 dark:bg-gray-700' />
+                          <div
+                            className='absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#8C97A8]'
+                            style={{
+                              left: `${runtimeLeft}%`,
+                              right: `${runtimeRight}%`,
+                            }}
+                          />
+                          <input
+                            type='range'
+                            min='0'
+                            max={MAX_RUNTIME_MINUTES}
+                            step='10'
+                            value={runtimeMinValue}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setFilters((prev) => ({
+                                ...prev,
+                                runtimeMin: String(
+                                  Math.min(next, Number(prev.runtimeMax))
+                                ),
+                              }));
+                            }}
+                            className={`${RANGE_INPUT_CLASS} z-20`}
+                          />
+                          <input
+                            type='range'
+                            min='0'
+                            max={MAX_RUNTIME_MINUTES}
+                            step='10'
+                            value={runtimeMaxValue}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setFilters((prev) => ({
+                                ...prev,
+                                runtimeMax: String(
+                                  Math.max(next, Number(prev.runtimeMin))
+                                ),
+                              }));
+                            }}
+                            className={`${RANGE_INPUT_CLASS} z-30`}
+                          />
+                        </div>
+                        <div className='mt-1 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400'>
+                          <span>0</span>
+                          <span>120</span>
+                          <span>240</span>
+                          <span>{MAX_RUNTIME_MINUTES}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-          )}
+          </div>
 
-          {/* 没有更多数据提示 */}
-          {!hasMore && doubanData.length > 0 && (
-            <div className='text-center text-gray-500 py-8'>已加载全部内容</div>
-          )}
+          <div className='mx-auto mt-8 max-w-[95%] overflow-visible'>
+            <div className='grid grid-cols-2 justify-start gap-x-2 gap-y-12 px-0 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20 sm:px-2'>
+              {(
+                type === 'custom'
+                  ? customLoading
+                  : type === 'show'
+                  ? showLoading
+                  : loading
+              )
+                ? skeletonData.map((index) => (
+                    <DoubanCardSkeleton key={index} />
+                  ))
+                : (type === 'custom'
+                    ? customItems
+                    : type === 'show'
+                    ? showItems
+                    : items
+                  ).map((item, index) => (
+                    <div key={`${item.id}-${index}`} className='w-full'>
+                      <VideoCard
+                        from='douban'
+                        title={item.title}
+                        poster={item.poster}
+                        douban_id={item.id}
+                        rate={item.rate}
+                        year={item.year}
+                        type={
+                          type === 'custom'
+                            ? customPrimarySelection === 'movie'
+                              ? 'movie'
+                              : ''
+                            : type === 'show'
+                            ? ''
+                            : media
+                        }
+                      />
+                    </div>
+                  ))}
+            </div>
 
-          {/* 空状态 */}
-          {!loading && doubanData.length === 0 && (
-            <div className='text-center text-gray-500 py-8'>暂无相关内容</div>
-          )}
-        </div>
+            {(type === 'custom'
+              ? customHasMore
+              : type === 'show'
+              ? showHasMore
+              : hasMore) &&
+            !(type === 'custom'
+              ? customLoading
+              : type === 'show'
+              ? showLoading
+              : loading) ? (
+              <div
+                ref={
+                  type === 'custom'
+                    ? customLoadingRef
+                    : type === 'show'
+                    ? showLoadingRef
+                    : loadingRef
+                }
+                className='mt-12 flex justify-center py-8'
+              >
+                {(
+                  type === 'custom'
+                    ? customLoadingMore
+                    : type === 'show'
+                    ? showLoadingMore
+                    : isLoadingMore
+                ) ? (
+                  <div className='flex items-center gap-2'>
+                    <div className='h-6 w-6 animate-spin rounded-full border-b-2 border-blue-500' />
+                    <span className='text-gray-600 dark:text-gray-300'>
+                      加载中...
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {!(type === 'custom'
+              ? customHasMore
+              : type === 'show'
+              ? showHasMore
+              : hasMore) &&
+            (type === 'custom'
+              ? customItems.length
+              : type === 'show'
+              ? showItems.length
+              : items.length) > 0 ? (
+              <div className='py-8 text-center text-gray-500 dark:text-gray-400'>
+                已加载全部内容
+              </div>
+            ) : null}
+
+            {!(type === 'custom'
+              ? customLoading
+              : type === 'show'
+              ? showLoading
+              : loading) &&
+            (type === 'custom'
+              ? customItems.length
+              : type === 'show'
+              ? showItems.length
+              : items.length) === 0 ? (
+              <div className='py-8 text-center text-gray-500 dark:text-gray-400'>
+                暂无相关内容
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </PageLayout>
