@@ -147,7 +147,7 @@ export default function PersonDetailPage() {
               </div>
             ) : detail ? (
               <div className='space-y-10'>
-                <section className='overflow-hidden rounded-3xl border border-white/20 bg-zinc-900 text-white shadow-2xl'>
+                <section className='text-white'>
                   <div className='grid grid-cols-1 gap-6 p-6 md:grid-cols-[180px_1fr] md:gap-8 md:p-8'>
                     <div className='mx-auto w-full max-w-[180px] self-start overflow-hidden rounded-xl border border-white/20 bg-white/10 shadow-lg md:mx-0'>
                       {detail.profile ? (
@@ -168,7 +168,7 @@ export default function PersonDetailPage() {
                     </div>
 
                     <div className='space-y-4'>
-                      <div className='space-y-2'>
+                      <div className='space-y-4'>
                         <h1 className='text-4xl font-bold tracking-tight text-white sm:text-5xl'>
                           {detail.name}
                         </h1>
