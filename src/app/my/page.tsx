@@ -1,7 +1,24 @@
 'use client';
 
-import { Heart, History, Search, X } from 'lucide-react';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { BarChart3, Heart, History, Search, X } from 'lucide-react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Label,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  RadialBar,
+  RadialBarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import type { Favorite, PlayRecord } from '@/lib/db.client';
 import {
@@ -14,7 +31,6 @@ import {
 
 import CapsuleSwitch from '@/components/CapsuleSwitch';
 import PageLayout from '@/components/PageLayout';
-import VideoCard from '@/components/VideoCard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import VideoCard from '@/components/VideoCard';
 
 type PlayRecordItem = PlayRecord & { key: string };
 
@@ -39,6 +56,141 @@ interface FavoriteItem {
   sourceName: string;
   currentEpisode?: number;
   searchTitle?: string;
+}
+
+type ActiveTab = 'play' | 'favorite' | 'analysis';
+
+type AnalysisView = 'day' | 'week' | 'month' | 'year';
+
+interface AnalysisDataPoint {
+  label: string;
+  range: string;
+  count: number;
+}
+
+interface GenreRadarDataPoint {
+  genre: string;
+  count: number;
+}
+
+interface WatchFormatStats {
+  movie: number;
+  tv: number;
+  total: number;
+}
+
+const PolarAngleAxisCompat = PolarAngleAxis as unknown as (props: {
+  dataKey: string;
+  tick?: { fill: string; fontSize: number };
+}) => JSX.Element;
+const PolarRadiusAxisCompat = PolarRadiusAxis as unknown as (props: {
+  tick?: boolean;
+  tickLine?: boolean;
+  axisLine?: boolean;
+  children?: JSX.Element;
+}) => JSX.Element;
+
+const ANALYSIS_VIEW_CONFIG = {
+  day: {
+    title: '每日观看数量',
+    description: '最近 30 天的观看记录统计',
+    size: 30,
+    buttonLabel: '日',
+  },
+  week: {
+    title: '每周观看数量',
+    description: '最近 12 周的观看记录统计',
+    size: 12,
+    buttonLabel: '周',
+  },
+  month: {
+    title: '每月观看数量',
+    description: '最近 12 个月的观看记录统计',
+    size: 12,
+    buttonLabel: '月',
+  },
+  year: {
+    title: '每年观看数量',
+    description: '最近 8 年的观看记录统计',
+    size: 8,
+    buttonLabel: '年',
+  },
+} as const;
+
+const GENRE_ANALYSIS_MAX_ITEMS = 80;
+const SUPPORTED_GENRES = [
+  '冒险',
+  '剧情',
+  '动作',
+  '动画',
+  '历史',
+  '喜剧',
+  '奇幻',
+  '家庭',
+  '恐怖',
+  '悬疑',
+  '惊悚',
+  '战争',
+  '爱情',
+  '犯罪',
+  '科幻',
+  '纪录',
+  '西部',
+  '音乐',
+] as const;
+
+type SupportedGenre = (typeof SUPPORTED_GENRES)[number];
+
+const GENRE_ALIAS_MAP: Record<string, SupportedGenre> = {
+  adventure: '冒险',
+  'action & adventure': '动作',
+  '动作冒险': '动作',
+  drama: '剧情',
+  action: '动作',
+  animation: '动画',
+  history: '历史',
+  comedy: '喜剧',
+  fantasy: '奇幻',
+  family: '家庭',
+  horror: '恐怖',
+  mystery: '悬疑',
+  thriller: '惊悚',
+  war: '战争',
+  'war & politics': '战争',
+  romance: '爱情',
+  crime: '犯罪',
+  'science fiction': '科幻',
+  'science fiction & fantasy': '科幻',
+  sci_fi: '科幻',
+  sci_fi__fantasy: '科幻',
+  '科幻与奇幻': '科幻',
+  documentary: '纪录',
+  '纪录片': '纪录',
+  western: '西部',
+  music: '音乐',
+  冒险: '冒险',
+  剧情: '剧情',
+  动作: '动作',
+  动画: '动画',
+  历史: '历史',
+  喜剧: '喜剧',
+  奇幻: '奇幻',
+  家庭: '家庭',
+  恐怖: '恐怖',
+  悬疑: '悬疑',
+  惊悚: '惊悚',
+  战争: '战争',
+  爱情: '爱情',
+  犯罪: '犯罪',
+  科幻: '科幻',
+  纪录: '纪录',
+  西部: '西部',
+  音乐: '音乐',
+};
+
+function normalizeGenreName(rawGenre: string): SupportedGenre | null {
+  const normalized = rawGenre.trim().toLowerCase();
+  return GENRE_ALIAS_MAP[normalized] || null;
 }
 
 function parseStorageKey(key: string): { source: string; id: string } {
@@ -57,8 +209,134 @@ function getProgressPercent(record: PlayRecord): number {
   return (record.play_time / record.total_time) * 100;
 }
 
+function getWeekStartTimestamp(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  const day = date.getDay();
+  const diff = (day + 6) % 7;
+  date.setDate(date.getDate() - diff);
+  return date.getTime();
+}
+
+function getDayStartTimestamp(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function getMonthStartTimestamp(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setDate(1);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function getYearStartTimestamp(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setMonth(0, 1);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function getBucketStartTimestamp(
+  timestamp: number,
+  analysisView: AnalysisView
+): number {
+  if (analysisView === 'day') return getDayStartTimestamp(timestamp);
+  if (analysisView === 'week') return getWeekStartTimestamp(timestamp);
+  if (analysisView === 'month') return getMonthStartTimestamp(timestamp);
+  return getYearStartTimestamp(timestamp);
+}
+
+function formatDayLabel(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatDayRange(timestamp: number): string {
+  const date = new Date(timestamp);
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(date);
+}
+
+function formatWeekLabel(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatWeekRange(timestamp: number): string {
+  const start = new Date(timestamp);
+  const end = new Date(timestamp);
+  end.setDate(end.getDate() + 6);
+  const formatter = new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+  });
+  return `${formatter.format(start)} - ${formatter.format(end)}`;
+}
+
+function formatMonthLabel(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${String(date.getFullYear()).slice(-2)}/${date.getMonth() + 1}`;
+}
+
+function formatMonthRange(timestamp: number): string {
+  const date = new Date(timestamp);
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+  }).format(date);
+}
+
+function formatYearLabel(timestamp: number): string {
+  return `${new Date(timestamp).getFullYear()}`;
+}
+
+function formatYearRange(timestamp: number): string {
+  return `${new Date(timestamp).getFullYear()} 年`;
+}
+
+function formatBucketLabel(timestamp: number, analysisView: AnalysisView): string {
+  if (analysisView === 'day') return formatDayLabel(timestamp);
+  if (analysisView === 'week') return formatWeekLabel(timestamp);
+  if (analysisView === 'month') return formatMonthLabel(timestamp);
+  return formatYearLabel(timestamp);
+}
+
+function formatBucketRange(timestamp: number, analysisView: AnalysisView): string {
+  if (analysisView === 'day') return formatDayRange(timestamp);
+  if (analysisView === 'week') return formatWeekRange(timestamp);
+  if (analysisView === 'month') return formatMonthRange(timestamp);
+  return formatYearRange(timestamp);
+}
+
+function moveBucket(
+  current: Date,
+  analysisView: AnalysisView,
+  steps: number
+): Date {
+  const next = new Date(current);
+  if (analysisView === 'day') {
+    next.setDate(next.getDate() + steps);
+    return next;
+  }
+  if (analysisView === 'week') {
+    next.setDate(next.getDate() + steps * 7);
+    return next;
+  }
+  if (analysisView === 'month') {
+    next.setMonth(next.getMonth() + steps);
+    return next;
+  }
+  next.setFullYear(next.getFullYear() + steps);
+  return next;
+}
+
 function MyPageClient() {
-  const [activeTab, setActiveTab] = useState<'play' | 'favorite'>('play');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('play');
   const [playRecords, setPlayRecords] = useState<PlayRecordItem[]>([]);
   const [favoriteItems, setFavoriteItems] = useState<FavoriteItem[]>([]);
   const [loadingPlayRecords, setLoadingPlayRecords] = useState(true);
@@ -77,6 +355,10 @@ function MyPageClient() {
   const [deleting, setDeleting] = useState(false);
   const [playSearchKeyword, setPlaySearchKeyword] = useState('');
   const [favoriteSearchKeyword, setFavoriteSearchKeyword] = useState('');
+  const [analysisView, setAnalysisView] = useState<AnalysisView>('week');
+  const [genreRadarData, setGenreRadarData] = useState<GenreRadarDataPoint[]>([]);
+  const [loadingGenreRadar, setLoadingGenreRadar] = useState(false);
+  const genreCacheRef = useRef<Map<string, string[]>>(new Map());
 
   const updatePlayRecords = useCallback((records: Record<string, PlayRecord>) => {
     const sorted = Object.entries(records)
@@ -170,8 +452,15 @@ function MyPageClient() {
       setSelectedFavoriteKeys(new Set());
       return;
     }
+    if (activeTab === 'favorite') {
+      setIsPlayBatchMode(false);
+      setSelectedPlayKeys(new Set());
+      return;
+    }
     setIsPlayBatchMode(false);
+    setIsFavoriteBatchMode(false);
     setSelectedPlayKeys(new Set());
+    setSelectedFavoriteKeys(new Set());
   }, [activeTab]);
 
   const normalizedPlaySearchKeyword = playSearchKeyword.trim().toLowerCase();
@@ -197,6 +486,157 @@ function MyPageClient() {
         (value || '').toLowerCase().includes(normalizedFavoriteSearchKeyword)
     );
   });
+
+  const analysisChartData = useMemo<AnalysisDataPoint[]>(() => {
+    const config = ANALYSIS_VIEW_CONFIG[analysisView];
+    const counts = new Map<number, number>();
+    for (const record of playRecords) {
+      const bucketStart = getBucketStartTimestamp(record.save_time, analysisView);
+      counts.set(bucketStart, (counts.get(bucketStart) || 0) + 1);
+    }
+
+    const currentBucketStart = getBucketStartTimestamp(Date.now(), analysisView);
+    const result: AnalysisDataPoint[] = [];
+    for (let i = config.size - 1; i >= 0; i -= 1) {
+      const bucketStartDate = moveBucket(
+        new Date(currentBucketStart),
+        analysisView,
+        -i
+      );
+      const bucketStartTimestamp = getBucketStartTimestamp(
+        bucketStartDate.getTime(),
+        analysisView
+      );
+      result.push({
+        label: formatBucketLabel(bucketStartTimestamp, analysisView),
+        range: formatBucketRange(bucketStartTimestamp, analysisView),
+        count: counts.get(bucketStartTimestamp) || 0,
+      });
+    }
+    return result;
+  }, [analysisView, playRecords]);
+
+  const watchFormatStats = useMemo<WatchFormatStats>(() => {
+    let tv = 0;
+    let movie = 0;
+
+    for (const record of playRecords) {
+      if (record.total_episodes > 1) {
+        tv += 1;
+      } else {
+        movie += 1;
+      }
+    }
+
+    return {
+      movie,
+      tv,
+      total: movie + tv,
+    };
+  }, [playRecords]);
+
+  const watchFormatChartData = useMemo(
+    () => [
+      {
+        period: 'all',
+        tv: watchFormatStats.tv,
+        movie: watchFormatStats.movie,
+      },
+    ],
+    [watchFormatStats.movie, watchFormatStats.tv]
+  );
+
+  const fetchGenresForRecord = useCallback(
+    async (record: PlayRecordItem): Promise<string[]> => {
+      const cached = genreCacheRef.current.get(record.key);
+      if (cached) return cached;
+
+      const { source, id } = parseStorageKey(record.key);
+      const params = new URLSearchParams();
+      params.set('mediaType', record.total_episodes > 1 ? 'tv' : 'movie');
+      if (record.year) params.set('year', record.year);
+      if (record.cover) params.set('poster', record.cover);
+
+      if (source === 'tmdb' && /^\d+$/.test(id)) {
+        params.set('id', id);
+      } else if (record.title) {
+        params.set('title', record.title);
+      } else {
+        genreCacheRef.current.set(record.key, []);
+        return [];
+      }
+
+      try {
+        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+        if (!response.ok) {
+          genreCacheRef.current.set(record.key, []);
+          return [];
+        }
+        const payload = (await response.json()) as { genres?: unknown };
+        const genres = Array.isArray(payload.genres)
+          ? payload.genres
+              .map((item) => (typeof item === 'string' ? item.trim() : ''))
+              .filter(Boolean)
+          : [];
+        genreCacheRef.current.set(record.key, genres);
+        return genres;
+      } catch {
+        genreCacheRef.current.set(record.key, []);
+        return [];
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (activeTab !== 'analysis' || loadingPlayRecords) return;
+    if (playRecords.length === 0) {
+      setGenreRadarData([]);
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      setLoadingGenreRadar(true);
+      try {
+        const targets = playRecords.slice(0, GENRE_ANALYSIS_MAX_ITEMS);
+        const settled = await Promise.allSettled(
+          targets.map((record) => fetchGenresForRecord(record))
+        );
+
+        if (cancelled) return;
+
+        const genreCountMap = new Map<SupportedGenre, number>();
+        for (const result of settled) {
+          if (result.status !== 'fulfilled') continue;
+          const uniqueGenres = new Set(result.value);
+          uniqueGenres.forEach((genre) => {
+            const normalizedGenre = normalizeGenreName(genre);
+            if (!normalizedGenre) return;
+            genreCountMap.set(
+              normalizedGenre,
+              (genreCountMap.get(normalizedGenre) || 0) + 1
+            );
+          });
+        }
+
+        const normalizedGenres = SUPPORTED_GENRES.map((genre) => ({
+          genre,
+          count: genreCountMap.get(genre) || 0,
+        }))
+          .filter((item) => item.count > 0)
+          .sort((a, b) => b.count - a.count);
+        setGenreRadarData(normalizedGenres);
+      } finally {
+        if (!cancelled) setLoadingGenreRadar(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, fetchGenresForRecord, loadingPlayRecords, playRecords]);
 
   const togglePlaySelection = (key: string) => {
     setSelectedPlayKeys((prev) => {
@@ -267,9 +707,10 @@ function MyPageClient() {
               options={[
                 { label: '历史记录', value: 'play' },
                 { label: '收藏夹', value: 'favorite' },
+                { label: '分析', value: 'analysis' },
               ]}
               active={activeTab}
-              onChange={(value) => setActiveTab(value as 'play' | 'favorite')}
+              onChange={(value) => setActiveTab(value as ActiveTab)}
             />
           </div>
 
@@ -409,7 +850,7 @@ function MyPageClient() {
               </div>
             )}
             </section>
-          ) : (
+          ) : activeTab === 'favorite' ? (
             <section className='space-y-4'>
             <div className='px-4 sm:px-6'>
               <div className='relative'>
@@ -538,6 +979,299 @@ function MyPageClient() {
                 </div>
               </div>
             )}
+            </section>
+          ) : (
+            <section className='space-y-4 px-4 sm:px-6'>
+              <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
+                <BarChart3 className='h-5 w-5' />
+                我的分析
+              </h2>
+
+              <div className='grid gap-4 lg:grid-cols-2'>
+                <div className='rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                  <div className='mb-3'>
+                    <p className='text-sm font-semibold text-gray-100'>
+                      观看类型偏好
+                    </p>
+                    <p className='text-xs text-gray-400'>
+                      基于 TMDB 类型统计最近观看内容
+                    </p>
+                  </div>
+                  <div className='h-72 w-full sm:h-80'>
+                    {loadingGenreRadar ? (
+                      <div className='flex h-full items-center justify-center text-sm text-gray-400'>
+                        正在分析类型...
+                      </div>
+                    ) : genreRadarData.length > 0 ? (
+                      <ResponsiveContainer width='100%' height='100%'>
+                        <RadarChart data={genreRadarData}>
+                          <PolarGrid stroke='rgba(148,163,184,.35)' />
+                          <PolarAngleAxisCompat
+                            dataKey='genre'
+                            tick={{ fill: '#9ca3af', fontSize: 12 }}
+                          />
+                          <Tooltip
+                            cursor={false}
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null;
+                              const genre =
+                                typeof payload[0]?.payload?.genre === 'string'
+                                  ? payload[0].payload.genre
+                                  : '';
+                              const value = payload[0]?.value;
+                              const numericValue =
+                                typeof value === 'number' ? value : Number(value || 0);
+
+                              return (
+                                <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                                  <p className='mb-1 text-[11px] text-white/70'>
+                                    类型偏好
+                                  </p>
+                                  <div className='flex items-center gap-2'>
+                                    <span className='inline-block h-2 w-2 rounded-full bg-cyan-400' />
+                                    <span className='text-white/85'>{genre}</span>
+                                    <span className='font-semibold text-white'>
+                                      {Number.isFinite(numericValue) ? numericValue : 0} 部
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            }}
+                          />
+                          <Radar
+                            dataKey='count'
+                            stroke='#06b6d4'
+                            fill='#06b6d4'
+                            fillOpacity={0.35}
+                            dot={{ r: 3, fillOpacity: 1 }}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className='flex h-full items-center justify-center text-sm text-gray-400'>
+                        暂无可用类型数据
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className='rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                  <div className='mb-3'>
+                    <p className='text-sm font-semibold text-gray-100'>
+                      内容形态分布
+                    </p>
+                    <p className='text-xs text-gray-400'>
+                      按历史记录区分电影与连续剧
+                    </p>
+                  </div>
+                  <div className='h-72 w-full sm:h-80'>
+                    {loadingPlayRecords ? (
+                      <div className='flex h-full items-center justify-center text-sm text-gray-400'>
+                        正在统计内容形态...
+                      </div>
+                    ) : watchFormatStats.total > 0 ? (
+                      <ResponsiveContainer width='100%' height='100%'>
+                        <RadialBarChart
+                          data={watchFormatChartData}
+                          endAngle={180}
+                          innerRadius={80}
+                          outerRadius={130}
+                          cy='62%'
+                        >
+                          <Tooltip
+                            cursor={false}
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null;
+                              const dataKey =
+                                typeof payload[0]?.dataKey === 'string'
+                                  ? payload[0].dataKey
+                                  : '';
+                              const format = dataKey === 'tv' ? '连续剧' : '电影';
+                              const dotColor = dataKey === 'tv' ? '#22d3ee' : '#60a5fa';
+                              const value = payload[0]?.value;
+                              const numericValue =
+                                typeof value === 'number' ? value : Number(value || 0);
+
+                              return (
+                                <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                                  <p className='mb-1 text-[11px] text-white/70'>
+                                    内容形态
+                                  </p>
+                                  <div className='flex items-center gap-2'>
+                                    <span
+                                      className='inline-block h-2 w-2 rounded-full'
+                                      style={{ backgroundColor: dotColor }}
+                                    />
+                                    <span className='text-white/85'>{format}</span>
+                                    <span className='font-semibold text-white'>
+                                      {Number.isFinite(numericValue) ? numericValue : 0} 条
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            }}
+                          />
+                          <PolarRadiusAxisCompat
+                            tick={false}
+                            tickLine={false}
+                            axisLine={false}
+                          >
+                            <Label
+                              content={({ viewBox }) => {
+                                if (
+                                  !viewBox ||
+                                  typeof viewBox !== 'object' ||
+                                  !('cx' in viewBox) ||
+                                  !('cy' in viewBox)
+                                ) {
+                                  return null;
+                                }
+                                const cx = Number(
+                                  (viewBox as { cx?: number }).cx || 0
+                                );
+                                const cy = Number(
+                                  (viewBox as { cy?: number }).cy || 0
+                                );
+                                return (
+                                  <text x={cx} y={cy} textAnchor='middle'>
+                                    <tspan x={cx} y={cy - 12} fill='#fff' fontSize='24' fontWeight='700'>
+                                      {watchFormatStats.total.toLocaleString()}
+                                    </tspan>
+                                    <tspan x={cx} y={cy + 10} fill='#9ca3af' fontSize='12'>
+                                      总观看
+                                    </tspan>
+                                  </text>
+                                );
+                              }}
+                            />
+                          </PolarRadiusAxisCompat>
+                          <RadialBar
+                            dataKey='tv'
+                            stackId='a'
+                            cornerRadius={5}
+                            fill='#22d3ee'
+                            className='stroke-transparent stroke-2'
+                          />
+                          <RadialBar
+                            dataKey='movie'
+                            stackId='a'
+                            cornerRadius={5}
+                            fill='#60a5fa'
+                            className='stroke-transparent stroke-2'
+                          />
+                        </RadialBarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className='flex h-full items-center justify-center text-sm text-gray-400'>
+                        暂无可用统计数据
+                      </div>
+                    )}
+                  </div>
+                  <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400'>
+                    <div className='inline-flex items-center gap-1.5'>
+                      <span
+                        className='inline-block h-2.5 w-2.5 rounded-full'
+                        style={{ backgroundColor: '#22d3ee' }}
+                      />
+                      <span>连续剧</span>
+                      <span className='text-gray-300'>{watchFormatStats.tv}</span>
+                    </div>
+                    <div className='inline-flex items-center gap-1.5'>
+                      <span
+                        className='inline-block h-2.5 w-2.5 rounded-full'
+                        style={{ backgroundColor: '#60a5fa' }}
+                      />
+                      <span>电影</span>
+                      <span className='text-gray-300'>{watchFormatStats.movie}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className='rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                <div className='mb-3 flex items-start justify-between gap-3'>
+                  <div>
+                    <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                      {ANALYSIS_VIEW_CONFIG[analysisView].title}
+                    </p>
+                    <p className='text-xs text-gray-500 dark:text-gray-400'>
+                      {ANALYSIS_VIEW_CONFIG[analysisView].description}
+                    </p>
+                  </div>
+                  <div className='inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800'>
+                    {(Object.keys(ANALYSIS_VIEW_CONFIG) as AnalysisView[]).map(
+                      (view) => (
+                        <button
+                          key={view}
+                          type='button'
+                          onClick={() => setAnalysisView(view)}
+                          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                            analysisView === view
+                              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          {ANALYSIS_VIEW_CONFIG[view].buttonLabel}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+                <div className='h-72 w-full sm:h-80'>
+                  <ResponsiveContainer width='100%' height='100%'>
+                    <BarChart
+                      data={analysisChartData}
+                      margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray='3 3' vertical={false} />
+                      <XAxis
+                        dataKey='label'
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        minTickGap={24}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        tickLine={false}
+                        axisLine={false}
+                        width={26}
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(96,165,250,0.08)' }}
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const range =
+                            typeof payload[0]?.payload?.range === 'string'
+                              ? payload[0].payload.range
+                              : '';
+                          const value = payload[0]?.value;
+                          const numericValue =
+                            typeof value === 'number' ? value : Number(value || 0);
+
+                          return (
+                            <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                              <p className='mb-1 text-[11px] text-white/70'>{range}</p>
+                              <div className='flex items-center gap-2'>
+                                <span className='inline-block h-2 w-2 rounded-full bg-sky-400' />
+                                <span className='text-white/85'>观看数</span>
+                                <span className='font-semibold text-white'>
+                                  {Number.isFinite(numericValue) ? numericValue : 0} 次
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar
+                        dataKey='count'
+                        fill='#60a5fa'
+                        radius={[6, 6, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </section>
           )}
         </div>

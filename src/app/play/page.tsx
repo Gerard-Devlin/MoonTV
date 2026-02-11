@@ -1637,8 +1637,8 @@ function PlayPageClient() {
     return (
       <PageLayout activePath='/play'>
         <div className='flex min-h-screen items-center justify-center bg-transparent px-6 py-12'>
-          <div className='w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70 sm:p-10'>
-            <div className='flex flex-col gap-5 text-center'>
+          <div className='w-full max-w-xs rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70 sm:p-8'>
+            <div className='flex flex-col gap-6 text-center'>
               <div className='flex flex-col items-center gap-3'>
                 <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/15'>
                   <AlertTriangle className='h-10 w-10 text-rose-500' />
@@ -1653,7 +1653,7 @@ function PlayPageClient() {
                 </div>
               </div>
 
-              <div className='grid gap-3 sm:grid-cols-2'>
+              <div className='grid gap-3'>
                 <button
                   onClick={() =>
                     videoTitle
