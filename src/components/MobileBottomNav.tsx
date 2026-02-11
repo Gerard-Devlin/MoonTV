@@ -13,8 +13,13 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { type MouseEvent as ReactMouseEvent, useEffect, useState } from 'react';
+
+import matrixStyles from '@/app/loading.module.css';
+
+const MATRIX_PATTERN_COUNT = 5;
+const MATRIX_COLUMN_COUNT = 40;
 
 interface MobileBottomNavProps {
   /**
@@ -31,6 +36,10 @@ const MobileBottomNav = ({
   onClose,
 }: MobileBottomNavProps) => {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchParamString = searchParams.toString();
+  const [showMatrixLoading, setShowMatrixLoading] = useState(false);
 
   const currentActive = activePath ?? pathname;
 
@@ -59,7 +68,55 @@ const MobileBottomNav = ({
 
   useEffect(() => {
     onClose();
-  }, [pathname, onClose]);
+  }, [onClose, pathname, searchParamString]);
+
+  const handleNavigateWithMatrixLoading = (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (event.defaultPrevented) return;
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+
+    const currentFullPath = searchParamString
+      ? `${pathname}?${searchParamString}`
+      : pathname;
+
+    if (decodeURIComponent(currentFullPath) === decodeURIComponent(href)) {
+      onClose();
+      return;
+    }
+
+    event.preventDefault();
+    onClose();
+    setShowMatrixLoading(true);
+
+    // Ensure the matrix overlay paints before route change starts.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        router.push(href);
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (!showMatrixLoading) return;
+    const timer = window.setTimeout(() => {
+      setShowMatrixLoading(false);
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [showMatrixLoading]);
+
+  useEffect(() => {
+    setShowMatrixLoading(false);
+  }, [pathname, searchParamString]);
 
   const isActive = (href: string) => {
     const typeMatch = href.match(/type=([^&]+)/)?.[1];
@@ -76,6 +133,22 @@ const MobileBottomNav = ({
 
   return (
     <>
+      {showMatrixLoading ? (
+        <div className='fixed inset-0 z-[2000]'>
+          <div className={matrixStyles['matrix-container']}>
+            {Array.from({ length: MATRIX_PATTERN_COUNT }).map((_, patternIndex) => (
+              <div key={patternIndex} className={matrixStyles['matrix-pattern']}>
+                {Array.from({ length: MATRIX_COLUMN_COUNT }).map(
+                  (__unused, columnIndex) => (
+                    <div key={columnIndex} className={matrixStyles['matrix-column']} />
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {isOpen && (
         <button
           type='button'
@@ -97,7 +170,7 @@ const MobileBottomNav = ({
         <div className='flex justify-center pt-2'>
           <Link
             href='/'
-            onClick={onClose}
+            onClick={(event) => handleNavigateWithMatrixLoading(event, '/')}
             className='inline-flex items-center justify-center p-1 transition-opacity hover:opacity-85'
             aria-label='返回首页'
           >
@@ -111,7 +184,9 @@ const MobileBottomNav = ({
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  onClick={onClose}
+                  onClick={(event) =>
+                    handleNavigateWithMatrixLoading(event, item.href)
+                  }
                   className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                     active
                       ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
