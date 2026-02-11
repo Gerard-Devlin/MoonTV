@@ -3,6 +3,7 @@
 import { BarChart3, Heart, History, Search, X } from 'lucide-react';
 import {
   Suspense,
+  type SyntheticEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -35,6 +36,7 @@ import {
   getAllPlayRecords,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { processImageUrl } from '@/lib/utils';
 
 import CapsuleSwitch from '@/components/CapsuleSwitch';
 import PageLayout from '@/components/PageLayout';
@@ -238,6 +240,17 @@ function parseStorageKey(key: string): { source: string; id: string } {
     source: key.slice(0, splitIndex),
     id: key.slice(splitIndex + 1),
   };
+}
+
+function normalizePosterUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  return trimmed;
+}
+
+function isHttpPosterUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
 }
 
 function getProgressPercent(record: PlayRecord): number {
@@ -765,6 +778,23 @@ function MyPageClient() {
   const genreRadarData = activeGenreAnalysis.data;
   const genrePosterMap = activeGenreAnalysis.posters;
 
+  const handleGenreTooltipPosterError = useCallback(
+    (event: SyntheticEvent<HTMLImageElement>) => {
+      const image = event.currentTarget;
+      const originalSrc = image.dataset.originalSrc || '';
+      const hasRetriedWithProxy = image.dataset.retryWithProxy === '1';
+
+      if (hasRetriedWithProxy || !isHttpPosterUrl(originalSrc)) {
+        image.style.display = 'none';
+        return;
+      }
+
+      image.dataset.retryWithProxy = '1';
+      image.src = `/api/image-proxy?url=${encodeURIComponent(originalSrc)}`;
+    },
+    []
+  );
+
   const togglePlaySelection = (key: string) => {
     setSelectedPlayKeys((prev) => {
       const next = new Set(prev);
@@ -1204,14 +1234,29 @@ function MyPageClient() {
                                   </div>
                                   {displayPosters.length > 0 ? (
                                     <div className='mt-2 flex items-center gap-1.5'>
-                                      {displayPosters.map((poster, index) => (
-                                        <img
-                                          key={`${genre}-poster-${index}`}
-                                          src={poster}
-                                          alt={`${genre} 海报 ${index + 1}`}
-                                          className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
-                                        />
-                                      ))}
+                                      {displayPosters.map((poster, index) => {
+                                        const normalizedPoster =
+                                          normalizePosterUrl(poster);
+                                        return (
+                                          <img
+                                            key={`${genre}-poster-${index}`}
+                                            src={processImageUrl(
+                                              normalizedPoster
+                                            )}
+                                            data-original-src={
+                                              normalizedPoster
+                                            }
+                                            alt={`${genre} 海报 ${index + 1}`}
+                                            className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
+                                            referrerPolicy='no-referrer'
+                                            loading='lazy'
+                                            decoding='async'
+                                            onError={
+                                              handleGenreTooltipPosterError
+                                            }
+                                          />
+                                        );
+                                      })}
                                       {hasMorePosters ? (
                                         <div className='flex h-24 w-16 items-center justify-center rounded bg-white/5 text-xl leading-none font-bold text-white/80 ring-1 ring-white/10'>
                                           ...
