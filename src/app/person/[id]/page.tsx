@@ -33,6 +33,7 @@ interface PersonCredit {
   title: string;
   poster: string;
   year: string;
+  releaseDate?: string;
   role: string;
   score: string;
   overview: string;
@@ -53,6 +54,8 @@ interface PersonDetail {
   imdbId: string;
   credits: PersonCredit[];
 }
+
+type CreditSortMode = 'popularity' | 'date';
 
 const DEPARTMENT_LABELS: Record<string, string> = {
   Acting: '演员',
@@ -81,6 +84,32 @@ function formatDepartment(value: string): string {
   return DEPARTMENT_LABELS[normalized] || normalized;
 }
 
+function toCreditTimestamp(releaseDate?: string, year?: string): number {
+  const normalizedDate = (releaseDate || '').trim();
+  if (normalizedDate) {
+    const timestamp = Date.parse(normalizedDate);
+    if (!Number.isNaN(timestamp)) return timestamp;
+  }
+
+  const normalizedYear = (year || '').trim();
+  if (/^\d{4}$/.test(normalizedYear)) {
+    return Date.UTC(Number(normalizedYear), 0, 1);
+  }
+
+  return 0;
+}
+
+function formatTimelineLabel(releaseDate?: string, year?: string): string {
+  const normalizedDate = (releaseDate || '').trim();
+  const yearFromDate = normalizedDate.slice(0, 4);
+  if (/^\d{4}$/.test(yearFromDate)) return yearFromDate;
+
+  const normalizedYear = (year || '').trim();
+  if (/^\d{4}$/.test(normalizedYear)) return normalizedYear;
+
+  return 'Unknown';
+}
+
 export default function PersonDetailPage() {
   const params = useParams<{ id: string }>();
   const personId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -88,6 +117,8 @@ export default function PersonDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<PersonDetail | null>(null);
+  const [creditSortMode, setCreditSortMode] =
+    useState<CreditSortMode>('popularity');
   const [bioExpanded, setBioExpanded] = useState(false);
   const [personCardWidth, setPersonCardWidth] = useState(176);
   const creditsGridRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +126,7 @@ export default function PersonDetailPage() {
   useEffect(() => {
     const idNum = Number(personId);
     setBioExpanded(false);
+    setCreditSortMode('popularity');
     if (!Number.isInteger(idNum) || idNum <= 0) {
       setError('Invalid person id');
       setLoading(false);
@@ -122,21 +154,68 @@ export default function PersonDetailPage() {
     run();
   }, [personId]);
 
-  const creditSearchResults = useMemo<SearchResult[]>(() => {
+  const sortedCredits = useMemo<PersonCredit[]>(() => {
     if (!detail?.credits?.length) return [];
-    return detail.credits.map((item) => ({
+    const credits = [...detail.credits];
+
+    credits.sort((a, b) => {
+      const dateDiff =
+        toCreditTimestamp(b.releaseDate, b.year) -
+        toCreditTimestamp(a.releaseDate, a.year);
+      const popularityDiff = b.popularity - a.popularity;
+
+      if (creditSortMode === 'date') {
+        if (dateDiff !== 0) return dateDiff;
+        if (popularityDiff !== 0) return popularityDiff;
+        return b.id - a.id;
+      }
+
+      if (popularityDiff !== 0) return popularityDiff;
+      if (dateDiff !== 0) return dateDiff;
+      return b.id - a.id;
+    });
+
+    return credits;
+  }, [creditSortMode, detail]);
+
+  const timelineGroups = useMemo<
+    Array<{ year: string; items: PersonCredit[] }>
+  >(() => {
+    if (creditSortMode !== 'date' || !sortedCredits.length) return [];
+
+    const grouped = new Map<string, PersonCredit[]>();
+    sortedCredits.forEach((item) => {
+      const yearLabel = formatTimelineLabel(item.releaseDate, item.year);
+      const existing = grouped.get(yearLabel);
+      if (existing) {
+        existing.push(item);
+        return;
+      }
+      grouped.set(yearLabel, [item]);
+    });
+
+    return Array.from(grouped.entries()).map(([year, items]) => ({
+      year,
+      items,
+    }));
+  }, [creditSortMode, sortedCredits]);
+
+  const creditSearchResults = useMemo<SearchResult[]>(() => {
+    if (!sortedCredits.length) return [];
+    return sortedCredits.map((item) => ({
       id: String(item.id),
       title: item.title,
       poster: item.poster,
-      episodes: item.mediaType === 'movie' ? ['movie'] : ['tv-1', 'tv-2'],
+      episodes: item.mediaType === 'movie' ? ['movie'] : ['tv'],
       source: 'tmdb',
       source_name: '',
       year: item.year || 'unknown',
+      score: item.score || '',
       desc: item.overview || '',
       type_name: item.mediaType,
       douban_id: 0,
     }));
-  }, [detail]);
+  }, [sortedCredits]);
 
   const biography = (detail?.biography || '').trim();
   const canExpandBio = biography.length > 120;
@@ -282,35 +361,101 @@ export default function PersonDetailPage() {
                 </section>
 
                 <section>
-                  <div className='mb-4 flex items-center justify-between'>
+                  <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
                     <h2 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
                       作品
                     </h2>
-                    <span className='text-sm text-gray-500 dark:text-gray-400'>
-                      共 {creditSearchResults.length} 条
-                    </span>
+                    <div className='flex items-center gap-2'>
+                      <div className='inline-flex overflow-hidden rounded-md border border-gray-300/80 bg-white/80 text-xs dark:border-gray-700 dark:bg-gray-900/70'>
+                        <button
+                          type='button'
+                          onClick={() => setCreditSortMode('popularity')}
+                          className={
+                            creditSortMode === 'popularity'
+                              ? 'px-3 py-1.5 transition-colors bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                              : 'px-3 py-1.5 transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                          }
+                        >
+                          按热度
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => setCreditSortMode('date')}
+                          className={
+                            creditSortMode === 'date'
+                              ? 'px-3 py-1.5 transition-colors bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                              : 'px-3 py-1.5 transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                          }
+                        >
+                          按时间
+                        </button>
+                      </div>
+                      <span className='text-sm text-gray-500 dark:text-gray-400'>
+                        共 {creditSearchResults.length} 条
+                      </span>
+                    </div>
                   </div>
 
                   {creditSearchResults.length > 0 ? (
-                    <div
-                      ref={creditsGridRef}
-                      className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'
-                    >
-                      {creditSearchResults.map((item) => (
-                        <div key={`person-credit-${item.type_name}-${item.id}`}>
-                          <VideoCard
-                            id={item.id}
-                            title={item.title}
+                    creditSortMode === 'date' ? (
+                      <div className='space-y-8'>
+                        {timelineGroups.map((group) => (
+                          <div
+                            key={`person-credit-year-${group.year}`}
+                            className='space-y-3'
+                          >
+                            <div className='flex items-center gap-2 pl-0.5'>
+                              <span className='h-3 w-3 rounded-full border-2 border-blue-500 bg-transparent' />
+                              <div className='text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                                {group.year}
+                              </div>
+                            </div>
+                            <div className='pl-5'>
+                              <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                                {group.items.map((item) => (
+                                  <div
+                                    key={`person-credit-${item.mediaType}-${item.id}`}
+                                  >
+                                    <VideoCard
+                                      id={String(item.id)}
+                                      title={item.title}
+                                      poster={item.poster}
+                                      episodes={1}
+                                      source='tmdb'
+                                      year={item.year}
+                                      rate={item.score}
+                                      from='douban'
+                                      type={item.mediaType}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div
+                        ref={creditsGridRef}
+                        className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'
+                      >
+                        {creditSearchResults.map((item) => (
+                          <div key={`person-credit-${item.type_name}-${item.id}`}>
+                            <VideoCard
+                              id={item.id}
+                              title={item.title}
                             poster={item.poster}
                             episodes={item.episodes.length}
                             source={item.source}
                             year={item.year}
-                            from='search'
+                            rate={item.score}
+                            from='douban'
                             type={item.type_name}
                           />
                         </div>
                       ))}
-                    </div>
+                      </div>
+                    )
                   ) : (
                     <div className='rounded-xl border border-gray-200 bg-white/80 p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400'>
                       暂无作品信息。

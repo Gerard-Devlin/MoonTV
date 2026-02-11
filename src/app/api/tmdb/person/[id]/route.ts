@@ -14,6 +14,8 @@ interface TmdbCreditRaw {
   media_type?: string;
   title?: string;
   name?: string;
+  original_title?: string;
+  original_name?: string;
   poster_path?: string | null;
   backdrop_path?: string | null;
   character?: string;
@@ -49,6 +51,7 @@ interface PersonCredit {
   title: string;
   poster: string;
   year: string;
+  releaseDate: string;
   role: string;
   score: string;
   overview: string;
@@ -100,18 +103,20 @@ function mapCredit(raw: TmdbCreditRaw): PersonCredit | null {
     : null;
   if (!mediaType) return null;
 
-  const title = normalizeText(raw.title || raw.name);
+  const title = normalizeText(
+    raw.title || raw.name || raw.original_title || raw.original_name
+  );
   if (!title) return null;
 
   const posterPath = raw.poster_path || raw.backdrop_path || '';
-  if (!posterPath) return null;
 
   return {
     id: raw.id,
     mediaType,
     title,
-    poster: `${TMDB_IMAGE_BASE_URL}${posterPath}`,
+    poster: posterPath ? `${TMDB_IMAGE_BASE_URL}${posterPath}` : '',
     year: toYear(raw.release_date || raw.first_air_date),
+    releaseDate: normalizeText(raw.release_date || raw.first_air_date),
     role: normalizeText(raw.character || raw.job),
     score: toScore(raw.vote_average),
     overview: normalizeText(raw.overview),
@@ -138,8 +143,7 @@ function dedupeAndSortCredits(raw: TmdbPersonRaw): PersonCredit[] {
   }
 
   return Array.from(mergedMap.values())
-    .sort((a, b) => b.popularity - a.popularity)
-    .slice(0, 60);
+    .sort((a, b) => b.popularity - a.popularity);
 }
 
 export async function GET(
