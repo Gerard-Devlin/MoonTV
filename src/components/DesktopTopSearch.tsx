@@ -15,8 +15,8 @@ import type { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 
 import TmdbDetailModal, {
-  type TmdbDetailModalData,
   type TmdbDetailMediaType,
+  type TmdbDetailModalData,
 } from '@/components/TmdbDetailModal';
 
 const SEARCH_DEBOUNCE_MS = 220;
@@ -82,7 +82,9 @@ export default function DesktopTopSearch() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [detailData, setDetailData] = useState<TmdbTopSearchDetail | null>(null);
+  const [detailData, setDetailData] = useState<TmdbTopSearchDetail | null>(
+    null
+  );
 
   const trimmedQuery = query.trim();
   const shouldShowDropdown =
@@ -231,10 +233,14 @@ export default function DesktopTopSearch() {
   const handlePlayFromDetail = useCallback(() => {
     const title = (detailData?.title || activeResult?.title || '').trim();
     if (!title) return;
-    const mediaType = detailData?.mediaType || (activeResult ? getMediaType(activeResult) : 'movie');
+    const mediaType =
+      detailData?.mediaType ||
+      (activeResult ? getMediaType(activeResult) : 'movie');
     const year = normalizeYear(detailData?.year || activeResult?.year);
     router.push(
-      `/play?title=${encodeURIComponent(title)}${year ? `&year=${year}` : ''}&stype=${mediaType}`
+      `/play?title=${encodeURIComponent(title)}${
+        year ? `&year=${year}` : ''
+      }&stype=${mediaType}`
     );
     handleCloseDetail();
   }, [activeResult, detailData, handleCloseDetail, router]);
@@ -274,7 +280,7 @@ export default function DesktopTopSearch() {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleInputKeyDown}
-          placeholder='搜索电影、剧集、人物...'
+          placeholder='搜索 ...'
           className='h-full w-full appearance-none border-0 bg-transparent px-2 text-sm text-gray-100 placeholder:text-gray-400 outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0'
         />
         {trimmedQuery ? (
@@ -310,8 +316,10 @@ export default function DesktopTopSearch() {
             ) : results.length > 0 ? (
               <>
                 {results.map((item, index) => {
-                  const year = item.year && item.year !== 'unknown' ? item.year : '';
-                  const score = item.score && item.score.trim() ? item.score.trim() : '--';
+                  const year =
+                    item.year && item.year !== 'unknown' ? item.year : '';
+                  const score =
+                    item.score && item.score.trim() ? item.score.trim() : '--';
                   return (
                     <button
                       key={`${item.source}-${item.id}-${index}`}
@@ -332,7 +340,9 @@ export default function DesktopTopSearch() {
                           {renderHighlightedText(item.title, trimmedQuery)}
                         </p>
                         <div className='flex items-center gap-1 text-sm text-gray-400'>
-                          <span className='truncate'>{getMediaLabel(item)}</span>
+                          <span className='truncate'>
+                            {getMediaLabel(item)}
+                          </span>
                           <span className='text-gray-500'>·</span>
                           <Star
                             className='h-3.5 w-3.5 shrink-0 text-yellow-400'
