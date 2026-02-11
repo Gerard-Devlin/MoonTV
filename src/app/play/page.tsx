@@ -7,14 +7,11 @@ import Hls from 'hls.js';
 import {
   AlertTriangle,
   ArrowLeft,
-  Bug,
   Film,
   Heart,
-  Info,
   RefreshCw,
   Search,
   Sparkles,
-  WifiOff,
   Zap,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -205,6 +202,211 @@ function PlayPageClient() {
 
   const artPlayerRef = useRef<any>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
+  const normalizeCompareText = (value: string): string =>
+    (value || '')
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/[·•:：\-_.()[\]【】「」『』"'"'`~!@#$%^&*+={}\\/|<>?,;，。！？、]/g, '');
+
+  const toChineseNumeral = (value: number): string => {
+    if (!Number.isInteger(value) || value <= 0 || value >= 100) {
+      return String(value);
+    }
+    const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+    if (value < 10) return digits[value];
+    if (value === 10) return '十';
+    if (value < 20) return `十${digits[value - 10]}`;
+    const tens = Math.floor(value / 10);
+    const ones = value % 10;
+    return `${digits[tens]}十${ones > 0 ? digits[ones] : ''}`;
+  };
+
+  const parseChineseNumeral = (value: string): number => {
+    const text = (value || '').trim().replace(/两/g, '二');
+    if (!text) return 0;
+    const map: Record<string, number> = {
+      一: 1,
+      二: 2,
+      三: 3,
+      四: 4,
+      五: 5,
+      六: 6,
+      七: 7,
+      八: 8,
+      九: 9,
+    };
+    if (text === '十') return 10;
+    if (text.includes('十')) {
+      const [left, right] = text.split('十');
+      const tens = left ? map[left] || 0 : 1;
+      const ones = right ? map[right] || 0 : 0;
+      return tens * 10 + ones;
+    }
+    return map[text] || 0;
+  };
+
+  const stripSeasonTokens = (value: string): string => {
+    const normalized = normalizeCompareText(value);
+    return normalized
+      .replace(/第[一二三四五六七八九十百千万两\d]+季/g, '')
+      .replace(/第\d+部/g, '')
+      .replace(/(?:season|series|s)\s*0*\d{1,2}/g, '')
+      .replace(/s0*\d{1,2}/g, '')
+      .replace(/第[一二三四五六七八九十百千万两\d]+辑/g, '');
+  };
+
+  const stripSeasonTokensForQuery = (value: string): string =>
+    (value || '')
+      .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*季/gi, ' ')
+      .replace(/第\s*\d+\s*部/gi, ' ')
+      .replace(/(?:season|series|s)\s*0*\d{1,2}/gi, ' ')
+      .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*辑/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const extractSeasonHints = (value: string): string[] => {
+    const text = value || '';
+    const hints = new Set<string>();
+    const addSeasonHints = (seasonNumber: number) => {
+      if (!Number.isFinite(seasonNumber) || seasonNumber <= 0) return;
+      hints.add(`第${seasonNumber}季`);
+      hints.add(`第${toChineseNumeral(seasonNumber)}季`);
+      hints.add(`S${String(seasonNumber).padStart(2, '0')}`);
+      hints.add(`Season ${seasonNumber}`);
+    };
+
+    const arabicMatches = text.match(/第\s*(\d{1,2})\s*季/gi) || [];
+    arabicMatches.forEach((raw) => {
+      const m = raw.match(/(\d{1,2})/);
+      if (!m) return;
+      const n = Number(m[1]);
+      addSeasonHints(n);
+    });
+
+    const seasonMatches = text.match(/(?:season|series|s)\s*0*(\d{1,2})/gi) || [];
+    seasonMatches.forEach((raw) => {
+      const m = raw.match(/(\d{1,2})/);
+      if (!m) return;
+      const n = Number(m[1]);
+      addSeasonHints(n);
+    });
+
+    const chineseMatches = text.match(/第\s*([一二三四五六七八九十两]{1,3})\s*季/g) || [];
+    chineseMatches.forEach((raw) => {
+      const m = raw.match(/([一二三四五六七八九十两]{1,3})/);
+      if (!m) return;
+      addSeasonHints(parseChineseNumeral(m[1]));
+    });
+
+    return Array.from(hints);
+  };
+
+  const buildTvQueryCandidates = (
+    primaryTitle: string,
+    seasonHintText?: string
+  ): string[] => {
+    const candidates: string[] = [];
+    const dedupe = new Set<string>();
+
+    const push = (value: string) => {
+      const normalized = value.trim();
+      if (!normalized) return;
+      const key = normalized.toLowerCase();
+      if (dedupe.has(key)) return;
+      dedupe.add(key);
+      candidates.push(normalized);
+    };
+
+    push(primaryTitle);
+    const baseTitle = primaryTitle || searchTitle || videoTitleRef.current;
+    push(baseTitle);
+
+    const seasonHints = extractSeasonHints(
+      seasonHintText || primaryTitle || searchTitle || videoTitleRef.current
+    );
+    const baseNoSeason = stripSeasonTokensForQuery(baseTitle) || baseTitle;
+    const compactBaseNoSeason = baseNoSeason.replace(/\s+/g, '').trim();
+    seasonHints.forEach((hint) => {
+      const compactHint = hint.replace(/\s+/g, '').trim();
+      push(`${baseNoSeason} ${hint}`);
+      push(`${baseNoSeason}${hint}`);
+      if (compactBaseNoSeason && compactHint) {
+        push(`${compactBaseNoSeason}${compactHint}`);
+      }
+    });
+
+    return candidates;
+  };
+
+  const filterSearchResults = (
+    items: SearchResult[],
+    expectedTitle: string,
+    expectedYear: string,
+    expectedType: string,
+    seasonHintText?: string
+  ): SearchResult[] => {
+    const normalizedExpected = normalizeCompareText(expectedTitle);
+    const expectedNoSeason = stripSeasonTokens(expectedTitle);
+    const seasonHints = extractSeasonHints(
+      seasonHintText || expectedTitle || searchTitle || videoTitleRef.current
+    );
+    const normalizedSeasonHints = seasonHints
+      .map((hint) => normalizeCompareText(hint))
+      .filter(Boolean);
+
+    const typeFiltered = items.filter((result) =>
+      expectedType
+        ? (expectedType === 'tv' && result.episodes.length > 1) ||
+          (expectedType === 'movie' && result.episodes.length === 1)
+        : true
+    );
+
+    const yearFiltered = expectedYear
+      ? typeFiltered.filter(
+          (result) => result.year.toLowerCase() === expectedYear.toLowerCase()
+        )
+      : typeFiltered;
+
+    // 两级匹配：先按年份严格匹配，失败再放宽到不限制年份（对分季剧集更稳）
+    const pools: SearchResult[][] = expectedYear
+      ? [yearFiltered, typeFiltered]
+      : [typeFiltered];
+
+    for (const pool of pools) {
+      const exactMatches = pool.filter(
+        (result) => normalizeCompareText(result.title) === normalizedExpected
+      );
+      if (exactMatches.length > 0) return exactMatches;
+
+      if (expectedType === 'tv') {
+        const fuzzyMatches = pool.filter((result) => {
+          const titleNoSeason = stripSeasonTokens(result.title);
+          const baseMatch =
+            Boolean(titleNoSeason) &&
+            Boolean(expectedNoSeason) &&
+            (titleNoSeason === expectedNoSeason ||
+              titleNoSeason.includes(expectedNoSeason) ||
+              expectedNoSeason.includes(titleNoSeason));
+          if (!baseMatch) return false;
+
+          if (normalizedSeasonHints.length === 0) return true;
+
+          const normalizedTitle = normalizeCompareText(result.title);
+          const resultHints = extractSeasonHints(result.title)
+            .map((hint) => normalizeCompareText(hint))
+            .filter(Boolean);
+
+          return normalizedSeasonHints.some(
+            (hint) =>
+              normalizedTitle.includes(hint) || resultHints.includes(hint)
+          );
+        });
+        if (fuzzyMatches.length > 0) return fuzzyMatches;
+      }
+    }
+
+    return [];
+  };
 
   // -----------------------------------------------------------------------------
   // 工具函数（Utils）
@@ -628,7 +830,11 @@ function PlayPageClient() {
         setSourceSearchLoading(false);
       }
     };
-    const fetchSourcesData = async (query: string): Promise<SearchResult[]> => {
+    const fetchSourcesData = async (
+      query: string,
+      expectedTitle: string,
+      seasonHintText: string
+    ): Promise<SearchResult[]> => {
       // 根据搜索词获取全部源信息
       try {
         const response = await fetch(
@@ -639,18 +845,13 @@ function PlayPageClient() {
         }
         const data = await response.json();
 
-        // 处理搜索结果，根据规则过滤
-        const results = data.results.filter(
-          (result: SearchResult) =>
-            result.title.replaceAll(' ', '').toLowerCase() ===
-              videoTitleRef.current.replaceAll(' ', '').toLowerCase() &&
-            (videoYearRef.current
-              ? result.year.toLowerCase() === videoYearRef.current.toLowerCase()
-              : true) &&
-            (searchType
-              ? (searchType === 'tv' && result.episodes.length > 1) ||
-                (searchType === 'movie' && result.episodes.length === 1)
-              : true)
+        // 处理搜索结果：优先精确匹配，剧集再做分季回退匹配
+        const results = filterSearchResults(
+          data.results,
+          expectedTitle,
+          videoYearRef.current,
+          searchType,
+          seasonHintText
         );
         setAvailableSources(results);
         return results;
@@ -677,7 +878,33 @@ function PlayPageClient() {
           : '正在搜索播放源...'
       );
 
-      let sourcesInfo = await fetchSourcesData(searchTitle || videoTitle);
+      const initialQuery = (searchTitle || videoTitle).trim();
+      const expectedTitleForMatch = (videoTitleRef.current || initialQuery).trim();
+      const seasonHintText = (searchTitle || videoTitleRef.current).trim();
+
+      setLoadingMessage('正在搜索播放源...');
+      const queryCandidates = buildTvQueryCandidates(
+        expectedTitleForMatch || initialQuery,
+        seasonHintText
+      );
+      let sourcesInfo: SearchResult[] = [];
+      for (const query of queryCandidates) {
+        sourcesInfo = await fetchSourcesData(
+          query,
+          expectedTitleForMatch || videoTitleRef.current || query,
+          seasonHintText
+        );
+        if (sourcesInfo.length > 0) break;
+      }
+      if (sourcesInfo.length === 0) {
+        console.warn('剧集匹配失败', {
+          queryCandidates,
+          expectedTitleForMatch,
+          seasonHintText,
+          expectedYear: videoYearRef.current,
+          searchType,
+        });
+      }
       if (
         currentSource &&
         currentId &&
@@ -1605,8 +1832,8 @@ function PlayPageClient() {
   if (loading) {
     return (
       <PageLayout activePath='/play'>
-        <div className='flex items-center justify-center min-h-screen bg-transparent'>
-          <div className='text-center max-w-md mx-auto px-6'>
+        <div className='relative flex items-center justify-center min-h-screen bg-transparent'>
+          <div className='text-center max-w-md mx-auto px-6 w-full'>
             <div className='flex justify-center mb-8'>
               {/* From Uiverse.io by jaykdoe */}
               <div className='stack' aria-hidden='true'>
@@ -1628,6 +1855,7 @@ function PlayPageClient() {
               </p>
             </div>
           </div>
+
         </div>
       </PageLayout>
     );

@@ -48,6 +48,23 @@ function formatDepartment(value: string): string {
   return DEPARTMENT_LABELS[normalized] || normalized;
 }
 
+function getEpisodeCount(item: SearchResult): number {
+  if (typeof item.total_episodes === 'number' && item.total_episodes > 0) {
+    return item.total_episodes;
+  }
+  if (item.source === 'tmdb' && (item.type_name || '').trim().toLowerCase() === 'tv') {
+    return 0;
+  }
+  return Array.isArray(item.episodes) ? item.episodes.length : 0;
+}
+
+function isTvResult(item: SearchResult): boolean {
+  const normalizedType = (item.type_name || '').trim().toLowerCase();
+  if (normalizedType === 'tv') return true;
+  if (normalizedType === 'movie') return false;
+  return getEpisodeCount(item) > 1;
+}
+
 function aggregateSearchResults(
   items: SearchResult[],
   query: string
@@ -55,7 +72,7 @@ function aggregateSearchResults(
   const map = new Map<string, SearchResult[]>();
   items.forEach((item) => {
     const key = `${item.title.replaceAll(' ', '')}-${item.year || 'unknown'}-${
-      item.episodes.length === 1 ? 'movie' : 'tv'
+      isTvResult(item) ? 'tv' : 'movie'
     }`;
     const arr = map.get(key) || [];
     arr.push(item);
@@ -393,7 +410,7 @@ function SearchPageClient() {
                               id={item.id}
                               title={item.title + ' ' + item.type_name}
                               poster={item.poster}
-                              episodes={item.episodes.length}
+                              episodes={getEpisodeCount(item)}
                               source={item.source}
                               source_name={item.source_name}
                               douban_id={item.douban_id?.toString()}
@@ -404,7 +421,7 @@ function SearchPageClient() {
                               }
                               year={item.year}
                               from='search'
-                              type={item.episodes.length > 1 ? 'tv' : 'movie'}
+                              type={isTvResult(item) ? 'tv' : 'movie'}
                             />
                           </div>
                         ))}
@@ -462,7 +479,7 @@ function SearchPageClient() {
                                       : item.title
                                   }
                                   poster={item.poster}
-                                  episodes={item.episodes.length}
+                                  episodes={getEpisodeCount(item)}
                                   source={item.source}
                                   source_name={item.source_name}
                                   douban_id={item.douban_id?.toString()}
@@ -473,9 +490,7 @@ function SearchPageClient() {
                                   }
                                   year={item.year}
                                   from='search'
-                                  type={
-                                    item.episodes.length > 1 ? 'tv' : 'movie'
-                                  }
+                                  type={isTvResult(item) ? 'tv' : 'movie'}
                                 />
                               </div>
                             ))}

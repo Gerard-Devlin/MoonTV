@@ -5,10 +5,12 @@ import {
   Heart,
   Link,
   Star,
+  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   deleteFavorite,
@@ -211,6 +213,23 @@ function normalizeMediaType(value?: string, episodes?: number): TmdbMediaType {
   if (value === 'movie') return 'movie';
   if (typeof episodes === 'number' && episodes > 1) return 'tv';
   return 'movie';
+}
+
+function hasSeasonHint(value: string): boolean {
+  const text = (value || '').toLowerCase();
+  if (!text.trim()) return false;
+  return (
+    /第\s*[一二三四五六七八九十百千万两\d]+\s*季/.test(text) ||
+    /(?:season|series|s)\s*0*\d{1,2}/i.test(text)
+  );
+}
+
+function stripSeasonHint(value: string): string {
+  return (value || '')
+    .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*季/gi, ' ')
+    .replace(/(?:season|series|s)\s*0*\d{1,2}/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function pickPreferredCertification(byCountry: Map<string, string>): string {
@@ -507,6 +526,16 @@ export default function VideoCard({
   const [favoriteDeleteDialogOpen, setFavoriteDeleteDialogOpen] =
     useState(false);
   const [favoriteDeleteLoading, setFavoriteDeleteLoading] = useState(false);
+  const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
+  const [seasonPickerData, setSeasonPickerData] = useState<{
+    baseTitle: string;
+    year: string;
+    seasonCount: number;
+  }>({
+    baseTitle: '',
+    year: '',
+    seasonCount: 0,
+  });
   const detailCacheRef = useRef<Record<string, TmdbCardDetail>>({});
   const detailRequestIdRef = useRef(0);
   const suppressCardClickUntilRef = useRef(0);
@@ -521,9 +550,18 @@ export default function VideoCard({
       if (item.douban_id && item.douban_id !== 0) {
         countMap.set(item.douban_id, (countMap.get(item.douban_id) || 0) + 1);
       }
-      const len = item.episodes?.length || 0;
-      if (len > 0) {
-        episodeCountMap.set(len, (episodeCountMap.get(len) || 0) + 1);
+      const totalEpisodes =
+        typeof item.total_episodes === 'number' && item.total_episodes > 0
+          ? Math.floor(item.total_episodes)
+          : item.source === 'tmdb' &&
+              (item.type_name || '').trim().toLowerCase() === 'tv'
+            ? 0
+            : item.episodes?.length || 0;
+      if (totalEpisodes > 0) {
+        episodeCountMap.set(
+          totalEpisodes,
+          (episodeCountMap.get(totalEpisodes) || 0) + 1
+        );
       }
     });
 
@@ -561,10 +599,28 @@ export default function VideoCard({
   const actualEpisodes = aggregateData?.mostFrequentEpisodes ?? episodes;
   const actualYear = aggregateData?.first.year ?? year;
   const actualQuery = query || '';
+  const seasonPickerBackdrop =
+    detailData?.backdrop ||
+    detailData?.poster ||
+    (actualPoster ? processImageUrl(actualPoster) : '');
+  const aggregateFirstTypeName = (aggregateData?.first.type_name || '')
+    .trim()
+    .toLowerCase();
+  const aggregateFirstEpisodeCount =
+    typeof aggregateData?.first.total_episodes === 'number' &&
+    aggregateData.first.total_episodes > 0
+      ? Math.floor(aggregateData.first.total_episodes)
+      : aggregateData?.first.source === 'tmdb' && aggregateFirstTypeName === 'tv'
+        ? 0
+      : aggregateData?.first.episodes?.length || 0;
   const actualSearchType = isAggregate
-    ? aggregateData?.first.episodes?.length === 1
-      ? 'movie'
-      : 'tv'
+    ? aggregateFirstTypeName === 'tv'
+      ? 'tv'
+      : aggregateFirstTypeName === 'movie'
+        ? 'movie'
+        : aggregateFirstEpisodeCount === 1
+          ? 'movie'
+          : 'tv'
     : type;
   const tmdbTrigger = useMemo(
     () => ({
@@ -685,15 +741,80 @@ export default function VideoCard({
     }
   }, [from, actualSource, actualId, onDelete]);
 
-  const goToPlay = useCallback(() => {
+  const pushPlayByTitle = useCallback(
+    (titleValue: string, yearValue: string, searchTypeValue: string) => {
+      router.push(
+        `/play?title=${encodeURIComponent(titleValue.trim())}${
+          yearValue ? `&year=${yearValue}` : ''
+        }${searchTypeValue ? `&stype=${searchTypeValue}` : ''}`
+      );
+    },
+    [router]
+  );
+
+  const fetchTmdbSeasonCountByTitle = useCallback(
+    async (titleValue: string, yearValue: string): Promise<number> => {
+      const trimmedTitle = (titleValue || '').trim();
+      if (!trimmedTitle) return 0;
+
+      const params = new URLSearchParams({
+        title: trimmedTitle,
+        mediaType: 'tv',
+      });
+      if (yearValue) {
+        params.set('year', yearValue.trim());
+      }
+
+      try {
+        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+        if (!response.ok) return 0;
+        const payload = (await response.json()) as {
+          mediaType?: 'movie' | 'tv';
+          seasons?: number | null;
+        };
+        if (payload.mediaType !== 'tv') return 0;
+        const seasons = payload.seasons;
+        if (typeof seasons !== 'number' || !Number.isFinite(seasons)) return 0;
+        return seasons > 0 ? Math.floor(seasons) : 0;
+      } catch {
+        return 0;
+      }
+    },
+    []
+  );
+
+  const goToPlay = useCallback(async () => {
     const shouldSearchByTitle = from === 'douban' || actualSource === 'tmdb';
     if (shouldSearchByTitle) {
-      router.push(
-        `/play?title=${encodeURIComponent(actualTitle.trim())}${
-          actualYear ? `&year=${actualYear}` : ''
-        }${actualSearchType ? `&stype=${actualSearchType}` : ''}`
-      );
-    } else if (actualSource && actualId) {
+      const titleForPlay = actualTitle.trim();
+      if (actualSearchType === 'tv' && !hasSeasonHint(titleForPlay)) {
+        const detailSeasons =
+          detailData?.mediaType === 'tv' &&
+          typeof detailData.seasons === 'number' &&
+          detailData.seasons > 1
+            ? Math.floor(detailData.seasons)
+            : 0;
+        const seasonCount =
+          detailSeasons || (await fetchTmdbSeasonCountByTitle(titleForPlay, actualYear || ''));
+        if (seasonCount > 1) {
+          setDetailOpen(false);
+          setDetailLoading(false);
+          setDetailError(null);
+          setSeasonPickerData({
+            baseTitle: stripSeasonHint(titleForPlay) || titleForPlay,
+            year: actualYear || '',
+            seasonCount,
+          });
+          setSeasonPickerOpen(true);
+          return;
+        }
+      }
+
+      pushPlayByTitle(titleForPlay, actualYear || '', actualSearchType || '');
+      return;
+    }
+
+    if (actualSource && actualId) {
       router.push(
         `/play?source=${actualSource}&id=${actualId}&title=${encodeURIComponent(
           actualTitle
@@ -707,14 +828,57 @@ export default function VideoCard({
   }, [
     from,
     actualSource,
+    actualTitle,
+    actualSearchType,
+    detailData,
+    fetchTmdbSeasonCountByTitle,
+    actualYear,
+    pushPlayByTitle,
     actualId,
     router,
-    actualTitle,
-    actualYear,
     isAggregate,
     actualQuery,
-    actualSearchType,
   ]);
+
+  const handleSeasonPick = useCallback(
+    (season: number) => {
+      const base = seasonPickerData.baseTitle.trim();
+      if (!base) return;
+      const seasonTitle = `${base} 第${season}季`;
+      const yearForPlay = seasonPickerData.year;
+      setSeasonPickerOpen(false);
+      setSeasonPickerData({ baseTitle: '', year: '', seasonCount: 0 });
+      pushPlayByTitle(seasonTitle, yearForPlay, 'tv');
+    },
+    [pushPlayByTitle, seasonPickerData]
+  );
+
+  const handleSeasonPickerClose = useCallback(() => {
+    setSeasonPickerOpen(false);
+    setSeasonPickerData({ baseTitle: '', year: '', seasonCount: 0 });
+  }, []);
+
+  const handleSeasonPickerBackdropPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      handleSeasonPickerClose();
+    },
+    [handleSeasonPickerClose]
+  );
+
+  useEffect(() => {
+    if (!seasonPickerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        handleSeasonPickerClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [seasonPickerOpen, handleSeasonPickerClose]);
 
   const config = useMemo(() => {
     const configs = {
@@ -1015,6 +1179,90 @@ export default function VideoCard({
         }}
         onPlay={goToPlay}
       />
+
+      {seasonPickerOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              className='fixed inset-0 z-[900] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
+              onPointerDown={handleSeasonPickerBackdropPointerDown}
+            >
+              <div
+                role='dialog'
+                aria-modal='false'
+                aria-label='请选择要播放的季'
+                className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <div className='absolute inset-0'>
+                  {seasonPickerBackdrop ? (
+                    <Image
+                      src={seasonPickerBackdrop}
+                      alt={seasonPickerData.baseTitle || actualTitle}
+                      fill
+                      className='object-cover opacity-30'
+                    />
+                  ) : null}
+                  <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
+                </div>
+
+                <div className='relative p-6'>
+                  <button
+                    type='button'
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleSeasonPickerClose();
+                    }}
+                    className='absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-zinc-200 transition-colors hover:bg-black/70 hover:text-white'
+                    aria-label='关闭选季弹窗'
+                  >
+                    <X size={16} />
+                  </button>
+
+                  <div className='space-y-2 text-center sm:text-left'>
+                    <h3 className='text-lg font-semibold sm:pr-10'>请选择要播放的季</h3>
+                    {detailData?.logo ? (
+                      <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
+                        <Image
+                          src={processImageUrl(detailData.logo)}
+                          alt={`${seasonPickerData.baseTitle || actualTitle} logo`}
+                          fill
+                          className='object-contain object-center sm:object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]'
+                        />
+                      </div>
+                    ) : (
+                      <p className='text-sm text-zinc-300/90'>
+                        {seasonPickerData.baseTitle || actualTitle}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
+                    {Array.from(
+                      { length: Math.max(1, seasonPickerData.seasonCount) },
+                      (_, idx) => idx + 1
+                    ).map((season) => (
+                      <button
+                        key={`season-pick-${season}`}
+                        type='button'
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleSeasonPick(season);
+                        }}
+                        className='rounded-xl border border-zinc-200/30 bg-white/10 px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-white/20'
+                      >
+                        {`第 ${season} 季`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
 
       <AlertDialog
         open={deleteDialogOpen}

@@ -10,6 +10,15 @@ const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const TMDB_SEARCH_TIMEOUT_MS = 8000;
 const TALK_SHOW_GENRE_ID = 10767;
+const TV_EPISODE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const tvEpisodeCountCache = new Map<
+  number,
+  {
+    count: number;
+    expiresAt: number;
+  }
+>();
 
 interface TmdbMovieItem {
   id?: number;
@@ -31,6 +40,10 @@ interface TmdbTvItem {
   popularity?: number;
   vote_average?: number;
   genre_ids?: number[];
+}
+
+interface TmdbTvDetailItem {
+  number_of_episodes?: number;
 }
 
 interface TmdbKnownForItem {
@@ -147,6 +160,7 @@ function mapMovieCandidate(raw: TmdbMovieItem, query: string): SearchMediaCandid
       title,
       poster: `${TMDB_IMAGE_BASE_URL}${raw.poster_path}`,
       episodes: ['movie'],
+      total_episodes: 1,
       source: 'tmdb',
       source_name: 'TMDB',
       year: toYear(raw.release_date),
@@ -183,6 +197,75 @@ function mapTvCandidate(raw: TmdbTvItem, query: string): SearchMediaCandidate | 
     matchScore: scoreMatch(title, query),
     popularity: raw.popularity || 0,
   };
+}
+
+function getCachedTvEpisodeCount(id: number): number | null {
+  const cached = tvEpisodeCountCache.get(id);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    tvEpisodeCountCache.delete(id);
+    return null;
+  }
+  return cached.count;
+}
+
+function setCachedTvEpisodeCount(id: number, count: number): void {
+  tvEpisodeCountCache.set(id, {
+    count,
+    expiresAt: Date.now() + TV_EPISODE_CACHE_TTL_MS,
+  });
+}
+
+async function fetchTvEpisodeCount(
+  id: number,
+  apiKey: string,
+  signal: AbortSignal
+): Promise<number | null> {
+  const cached = getCachedTvEpisodeCount(id);
+  if (cached && cached > 0) return cached;
+
+  try {
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      language: 'zh-CN',
+    });
+    const response = await fetch(
+      `${TMDB_API_BASE_URL}/tv/${id}?${params.toString()}`,
+      { signal }
+    );
+    if (!response.ok) return null;
+    const payload = (await response.json()) as TmdbTvDetailItem;
+    const count = payload.number_of_episodes;
+    if (typeof count !== 'number' || !Number.isFinite(count) || count <= 0) {
+      return null;
+    }
+    const normalizedCount = Math.floor(count);
+    setCachedTvEpisodeCount(id, normalizedCount);
+    return normalizedCount;
+  } catch {
+    return null;
+  }
+}
+
+async function hydrateTvEpisodeCounts(
+  candidates: SearchMediaCandidate[],
+  apiKey: string,
+  signal: AbortSignal
+): Promise<void> {
+  const tvCandidates = candidates.filter(
+    (item) => item.result.type_name === 'tv'
+  );
+  if (tvCandidates.length === 0) return;
+
+  await Promise.all(
+    tvCandidates.map(async (candidate) => {
+      const id = Number(candidate.result.id);
+      if (!Number.isInteger(id) || id <= 0) return;
+      const episodeCount = await fetchTvEpisodeCount(id, apiKey, signal);
+      if (!episodeCount || episodeCount <= 0) return;
+      candidate.result.total_episodes = episodeCount;
+    })
+  );
 }
 
 function mapPeopleResults(rawPeople: TmdbPersonItem[]): SearchPersonResult[] {
@@ -261,6 +344,8 @@ export async function GET(request: Request) {
       if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
       return b.popularity - a.popularity;
     });
+
+    await hydrateTvEpisodeCounts(mediaCandidates, apiKey, controller.signal);
 
     const response: SearchTmdbResponse = {
       results: mediaCandidates.map((item) => item.result),

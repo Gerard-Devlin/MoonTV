@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
@@ -42,6 +43,23 @@ function getMediaType(item: SearchResult): TmdbDetailMediaType {
 function normalizeYear(value?: string): string {
   const year = (value || '').trim();
   return /^\d{4}$/.test(year) ? year : '';
+}
+
+function hasSeasonHint(value: string): boolean {
+  const text = (value || '').toLowerCase();
+  if (!text.trim()) return false;
+  return (
+    /第\s*[一二三四五六七八九十百千万两\d]+\s*季/.test(text) ||
+    /(?:season|series|s)\s*0*\d{1,2}/i.test(text)
+  );
+}
+
+function stripSeasonHint(value: string): string {
+  return (value || '')
+    .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*季/gi, ' ')
+    .replace(/(?:season|series|s)\s*0*\d{1,2}/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function renderHighlightedText(text: string, keyword: string): JSX.Element {
@@ -85,6 +103,20 @@ export default function DesktopTopSearch() {
   const [detailData, setDetailData] = useState<TmdbTopSearchDetail | null>(
     null
   );
+  const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
+  const [seasonPickerData, setSeasonPickerData] = useState<{
+    baseTitle: string;
+    year: string;
+    seasonCount: number;
+    logo: string;
+    backdrop: string;
+  }>({
+    baseTitle: '',
+    year: '',
+    seasonCount: 0,
+    logo: '',
+    backdrop: '',
+  });
 
   const trimmedQuery = query.trim();
   const shouldShowDropdown =
@@ -158,6 +190,27 @@ export default function DesktopTopSearch() {
     };
   }, [detailOpen]);
 
+  useEffect(() => {
+    if (!seasonPickerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setSeasonPickerOpen(false);
+        setSeasonPickerData({
+          baseTitle: '',
+          year: '',
+          seasonCount: 0,
+          logo: '',
+          backdrop: '',
+        });
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [seasonPickerOpen]);
+
   const goSearchPage = (keyword: string) => {
     const trimmed = keyword.trim();
     if (!trimmed) return;
@@ -230,20 +283,114 @@ export default function DesktopTopSearch() {
     detailRequestIdRef.current += 1;
   }, []);
 
-  const handlePlayFromDetail = useCallback(() => {
+  const pushPlayByTitle = useCallback(
+    (title: string, mediaType: TmdbDetailMediaType, year: string) => {
+      router.push(
+        `/play?title=${encodeURIComponent(title)}${
+          year ? `&year=${year}` : ''
+        }&stype=${mediaType}`
+      );
+    },
+    [router]
+  );
+
+  const fetchTmdbSeasonCountByTitle = useCallback(
+    async (title: string, year: string): Promise<number> => {
+      const trimmedTitle = (title || '').trim();
+      if (!trimmedTitle) return 0;
+
+      const params = new URLSearchParams({
+        title: trimmedTitle,
+        mediaType: 'tv',
+      });
+      if (year) params.set('year', year);
+
+      try {
+        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+        if (!response.ok) return 0;
+        const payload = (await response.json()) as {
+          mediaType?: 'movie' | 'tv';
+          seasons?: number | null;
+        };
+        if (payload.mediaType !== 'tv') return 0;
+        if (typeof payload.seasons !== 'number' || payload.seasons <= 1) return 0;
+        return Math.floor(payload.seasons);
+      } catch {
+        return 0;
+      }
+    },
+    []
+  );
+
+  const handleCloseSeasonPicker = useCallback(() => {
+    setSeasonPickerOpen(false);
+    setSeasonPickerData({
+      baseTitle: '',
+      year: '',
+      seasonCount: 0,
+      logo: '',
+      backdrop: '',
+    });
+  }, []);
+
+  const handleSeasonPickerBackdropPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      handleCloseSeasonPicker();
+    },
+    [handleCloseSeasonPicker]
+  );
+
+  const handleSeasonPick = useCallback(
+    (season: number) => {
+      const base = seasonPickerData.baseTitle.trim();
+      if (!base) return;
+      const seasonTitle = `${base} 第${season}季`;
+      const year = seasonPickerData.year;
+      handleCloseSeasonPicker();
+      pushPlayByTitle(seasonTitle, 'tv', year);
+    },
+    [handleCloseSeasonPicker, pushPlayByTitle, seasonPickerData.baseTitle, seasonPickerData.year]
+  );
+
+  const handlePlayFromDetail = useCallback(async () => {
     const title = (detailData?.title || activeResult?.title || '').trim();
     if (!title) return;
     const mediaType =
       detailData?.mediaType ||
       (activeResult ? getMediaType(activeResult) : 'movie');
     const year = normalizeYear(detailData?.year || activeResult?.year);
-    router.push(
-      `/play?title=${encodeURIComponent(title)}${
-        year ? `&year=${year}` : ''
-      }&stype=${mediaType}`
-    );
+
+    if (mediaType === 'tv' && !hasSeasonHint(title)) {
+      const detailSeasons =
+        typeof detailData?.seasons === 'number' && detailData.seasons > 1
+          ? Math.floor(detailData.seasons)
+          : 0;
+      const seasonCount =
+        detailSeasons || (await fetchTmdbSeasonCountByTitle(title, year));
+      if (seasonCount > 1) {
+        handleCloseDetail();
+        setSeasonPickerData({
+          baseTitle: stripSeasonHint(title) || title,
+          year,
+          seasonCount,
+          logo: detailData?.logo || '',
+          backdrop: detailData?.backdrop || detailData?.poster || activeResult?.poster || '',
+        });
+        setSeasonPickerOpen(true);
+        return;
+      }
+    }
+
+    pushPlayByTitle(title, mediaType, year);
     handleCloseDetail();
-  }, [activeResult, detailData, handleCloseDetail, router]);
+  }, [
+    activeResult,
+    detailData,
+    fetchTmdbSeasonCountByTitle,
+    handleCloseDetail,
+    pushPlayByTitle,
+  ]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -372,8 +519,90 @@ export default function DesktopTopSearch() {
         titleLogo={detailData?.logo}
         onClose={handleCloseDetail}
         onRetry={handleRetryDetail}
-        onPlay={handlePlayFromDetail}
+        onPlay={() => {
+          void handlePlayFromDetail();
+        }}
       />
+
+      {seasonPickerOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              className='fixed inset-0 z-[900] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'
+              onPointerDown={handleSeasonPickerBackdropPointerDown}
+            >
+              <div
+                role='dialog'
+                aria-modal='false'
+                aria-label='请选择要播放的季'
+                className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <div className='absolute inset-0'>
+                  {seasonPickerData.backdrop ? (
+                    <img
+                      src={processImageUrl(seasonPickerData.backdrop)}
+                      alt={seasonPickerData.baseTitle}
+                      className='h-full w-full object-cover opacity-30'
+                    />
+                  ) : null}
+                  <div className='absolute inset-0 bg-gradient-to-b from-black/20 via-slate-950/85 to-slate-950' />
+                </div>
+
+                <div className='relative p-6'>
+                  <button
+                    type='button'
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleCloseSeasonPicker();
+                    }}
+                    className='absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-zinc-200 transition-colors hover:bg-black/70 hover:text-white'
+                    aria-label='关闭选季弹窗'
+                  >
+                    <X className='h-4 w-4' />
+                  </button>
+
+                  <div className='space-y-2 text-center sm:text-left'>
+                    <h3 className='text-lg font-semibold sm:pr-10'>请选择要播放的季</h3>
+                    {seasonPickerData.logo ? (
+                      <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
+                        <img
+                          src={processImageUrl(seasonPickerData.logo)}
+                          alt={`${seasonPickerData.baseTitle} logo`}
+                          className='h-full w-full object-contain object-center drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)] sm:object-left'
+                        />
+                      </div>
+                    ) : (
+                      <p className='text-sm text-zinc-300/90'>{seasonPickerData.baseTitle}</p>
+                    )}
+                  </div>
+
+                  <div className='mt-1 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto py-1 sm:grid-cols-4'>
+                    {Array.from(
+                      { length: Math.max(1, seasonPickerData.seasonCount) },
+                      (_, idx) => idx + 1
+                    ).map((season) => (
+                      <button
+                        key={`top-search-season-pick-${season}`}
+                        type='button'
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleSeasonPick(season);
+                        }}
+                        className='rounded-xl border border-zinc-200/30 bg-white/10 px-2 py-2 text-sm font-medium text-zinc-100 transition-colors hover:bg-white/20'
+                      >
+                        {`第 ${season} 季`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
