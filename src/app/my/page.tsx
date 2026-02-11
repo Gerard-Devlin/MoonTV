@@ -1,7 +1,14 @@
 'use client';
 
 import { BarChart3, Heart, History, Search, X } from 'lucide-react';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Bar,
   BarChart,
@@ -159,7 +166,7 @@ type SupportedGenre = (typeof SUPPORTED_GENRES)[number];
 const GENRE_ALIAS_MAP: Record<string, SupportedGenre> = {
   adventure: '冒险',
   'action & adventure': '动作',
-  '动作冒险': '动作',
+  动作冒险: '动作',
   drama: '剧情',
   action: '动作',
   animation: '动画',
@@ -178,9 +185,9 @@ const GENRE_ALIAS_MAP: Record<string, SupportedGenre> = {
   'science fiction & fantasy': '科幻',
   sci_fi: '科幻',
   sci_fi__fantasy: '科幻',
-  '科幻与奇幻': '科幻',
+  科幻与奇幻: '科幻',
   documentary: '纪录',
-  '纪录片': '纪录',
+  纪录片: '纪录',
   western: '西部',
   music: '音乐',
   冒险: '冒险',
@@ -328,14 +335,20 @@ function formatYearRange(timestamp: number): string {
   return `${new Date(timestamp).getFullYear()} 年`;
 }
 
-function formatBucketLabel(timestamp: number, analysisView: AnalysisView): string {
+function formatBucketLabel(
+  timestamp: number,
+  analysisView: AnalysisView
+): string {
   if (analysisView === 'day') return formatDayLabel(timestamp);
   if (analysisView === 'week') return formatWeekLabel(timestamp);
   if (analysisView === 'month') return formatMonthLabel(timestamp);
   return formatYearLabel(timestamp);
 }
 
-function formatBucketRange(timestamp: number, analysisView: AnalysisView): string {
+function formatBucketRange(
+  timestamp: number,
+  analysisView: AnalysisView
+): string {
   if (analysisView === 'day') return formatDayRange(timestamp);
   if (analysisView === 'week') return formatWeekRange(timestamp);
   if (analysisView === 'month') return formatMonthRange(timestamp);
@@ -396,12 +409,15 @@ function MyPageClient() {
   });
   const genreCacheRef = useRef<Map<string, string[]>>(new Map());
 
-  const updatePlayRecords = useCallback((records: Record<string, PlayRecord>) => {
-    const sorted = Object.entries(records)
-      .map(([key, record]) => ({ ...record, key }))
-      .sort((a, b) => b.save_time - a.save_time);
-    setPlayRecords(sorted);
-  }, []);
+  const updatePlayRecords = useCallback(
+    (records: Record<string, PlayRecord>) => {
+      const sorted = Object.entries(records)
+        .map(([key, record]) => ({ ...record, key }))
+        .sort((a, b) => b.save_time - a.save_time);
+      setPlayRecords(sorted);
+    },
+    []
+  );
 
   const updateFavorites = useCallback(
     async (favorites: Record<string, Favorite>) => {
@@ -527,11 +543,17 @@ function MyPageClient() {
     const config = ANALYSIS_VIEW_CONFIG[analysisView];
     const counts = new Map<number, number>();
     for (const record of playRecords) {
-      const bucketStart = getBucketStartTimestamp(record.save_time, analysisView);
+      const bucketStart = getBucketStartTimestamp(
+        record.save_time,
+        analysisView
+      );
       counts.set(bucketStart, (counts.get(bucketStart) || 0) + 1);
     }
 
-    const currentBucketStart = getBucketStartTimestamp(Date.now(), analysisView);
+    const currentBucketStart = getBucketStartTimestamp(
+      Date.now(),
+      analysisView
+    );
     const result: AnalysisDataPoint[] = [];
     for (let i = config.size - 1; i >= 0; i -= 1) {
       const bucketStartDate = moveBucket(
@@ -772,7 +794,9 @@ function MyPageClient() {
     setDeleting(true);
     try {
       if (deleteTarget === 'play') {
-        const targets = playRecords.filter((item) => selectedPlayKeys.has(item.key));
+        const targets = playRecords.filter((item) =>
+          selectedPlayKeys.has(item.key)
+        );
         await Promise.all(
           targets.map((item) => {
             const { source, id } = parseStorageKey(item.key);
@@ -821,119 +845,250 @@ function MyPageClient() {
 
           {activeTab === 'play' ? (
             <section className='space-y-4'>
-            <div className='px-4 sm:px-6'>
-              <div className='relative'>
-                <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
-                <input
-                  type='text'
-                  value={playSearchKeyword}
-                  onChange={(event) => setPlaySearchKeyword(event.target.value)}
-                  placeholder='搜索历史记录'
-                  className='h-10 w-full rounded-xl border border-gray-200 bg-white/80 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300/40 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/30'
-                />
-                {playSearchKeyword ? (
-                  <button
-                    type='button'
-                    aria-label='clear-play-search'
-                    onClick={() => setPlaySearchKeyword('')}
-                    className='absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
-                  >
-                    <X className='h-4 w-4' />
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            <div className='flex items-center justify-between'>
-              <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
-                <History className='h-5 w-5' />
-                {'\u6211\u7684\u5386\u53f2\u8bb0\u5f55'}
-              </h2>
-              {!loadingPlayRecords && playRecords.length > 0 ? (
-                isPlayBatchMode ? (
-                  <div className='flex items-center gap-3'>
+              <div className='px-4 sm:px-6'>
+                <div className='relative'>
+                  <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
+                  <input
+                    type='text'
+                    value={playSearchKeyword}
+                    onChange={(event) =>
+                      setPlaySearchKeyword(event.target.value)
+                    }
+                    placeholder='搜索历史记录'
+                    className='h-10 w-full rounded-xl border border-gray-200 bg-white/80 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300/40 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/30'
+                  />
+                  {playSearchKeyword ? (
                     <button
                       type='button'
-                      className='text-sm text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:text-gray-400'
-                      disabled={selectedPlayKeys.size === 0}
-                      onClick={() => setDeleteTarget('play')}
+                      aria-label='clear-play-search'
+                      onClick={() => setPlaySearchKeyword('')}
+                      className='absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
                     >
-                      {`\u5220\u9664 (${selectedPlayKeys.size})`}
+                      <X className='h-4 w-4' />
                     </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className='flex items-center justify-between'>
+                <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
+                  <History className='h-5 w-5' />
+                  {'\u6211\u7684\u5386\u53f2\u8bb0\u5f55'}
+                </h2>
+                {!loadingPlayRecords && playRecords.length > 0 ? (
+                  isPlayBatchMode ? (
+                    <div className='flex items-center gap-3'>
+                      <button
+                        type='button'
+                        className='text-sm text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:text-gray-400'
+                        disabled={selectedPlayKeys.size === 0}
+                        onClick={() => setDeleteTarget('play')}
+                      >
+                        {`\u5220\u9664 (${selectedPlayKeys.size})`}
+                      </button>
+                      <button
+                        type='button'
+                        className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                        onClick={() => {
+                          setIsPlayBatchMode(false);
+                          setSelectedPlayKeys(new Set());
+                        }}
+                      >
+                        {'\u53d6\u6d88'}
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type='button'
                       className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                       onClick={() => {
+                        setIsPlayBatchMode(true);
+                        setIsFavoriteBatchMode(false);
+                        setSelectedFavoriteKeys(new Set());
+                      }}
+                    >
+                      {'\u6279\u91cf\u5904\u7406'}
+                    </button>
+                  )
+                ) : null}
+              </div>
+
+              {loadingPlayRecords ? (
+                <div className='px-4 sm:px-6'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                    {Array.from({ length: 8 }).map((_, index) => (
+                      <div
+                        key={`my-play-skeleton-${index}`}
+                        className='relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : filteredPlayRecords.length > 0 ? (
+                <div className='px-4 sm:px-6'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                    {filteredPlayRecords.map((record) => {
+                      const { source, id } = parseStorageKey(record.key);
+                      const isSelected = selectedPlayKeys.has(record.key);
+                      return (
+                        <div key={record.key} className='relative'>
+                          <VideoCard
+                            id={id}
+                            source={source}
+                            title={record.title}
+                            poster={record.cover}
+                            source_name={record.source_name}
+                            year={record.year}
+                            episodes={record.total_episodes}
+                            currentEpisode={record.index}
+                            progress={getProgressPercent(record)}
+                            query={record.search_title}
+                            from='playrecord'
+                            type={record.total_episodes > 1 ? 'tv' : ''}
+                            onDelete={() =>
+                              setPlayRecords((prev) =>
+                                prev.filter((item) => item.key !== record.key)
+                              )
+                            }
+                          />
+                          {isPlayBatchMode ? (
+                            <button
+                              type='button'
+                              aria-label='toggle-play-record-selection'
+                              className='absolute inset-0 z-20 rounded-lg bg-black/10 transition-colors hover:bg-black/15'
+                              onClick={() => togglePlaySelection(record.key)}
+                            >
+                              <span
+                                className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${
+                                  isSelected
+                                    ? 'border-red-500 bg-red-500 text-white'
+                                    : 'border-white/80 bg-black/40 text-transparent'
+                                }`}
+                              >
+                                {'\u2713'}
+                              </span>
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className='py-8 text-center text-sm text-gray-500 dark:text-gray-400'>
+                  {playRecords.length === 0
+                    ? '\u6682\u65e0\u5386\u53f2\u8bb0\u5f55'
+                    : '\u672a\u627e\u5230\u5339\u914d\u7684\u5386\u53f2\u8bb0\u5f55'}
+                </div>
+              )}
+            </section>
+          ) : activeTab === 'favorite' ? (
+            <section className='space-y-4'>
+              <div className='px-4 sm:px-6'>
+                <div className='relative'>
+                  <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
+                  <input
+                    type='text'
+                    value={favoriteSearchKeyword}
+                    onChange={(event) =>
+                      setFavoriteSearchKeyword(event.target.value)
+                    }
+                    placeholder='搜索收藏夹'
+                    className='h-10 w-full rounded-xl border border-gray-200 bg-white/80 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300/40 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/30'
+                  />
+                  {favoriteSearchKeyword ? (
+                    <button
+                      type='button'
+                      aria-label='clear-favorite-search'
+                      onClick={() => setFavoriteSearchKeyword('')}
+                      className='absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
+                    >
+                      <X className='h-4 w-4' />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className='flex items-center justify-between'>
+                <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
+                  <Heart className='h-5 w-5' />
+                  {'\u6211\u7684\u6536\u85cf\u5939'}
+                </h2>
+                {!loadingFavorites && favoriteItems.length > 0 ? (
+                  isFavoriteBatchMode ? (
+                    <div className='flex items-center gap-3'>
+                      <button
+                        type='button'
+                        className='text-sm text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:text-gray-400'
+                        disabled={selectedFavoriteKeys.size === 0}
+                        onClick={() => setDeleteTarget('favorite')}
+                      >
+                        {`\u5220\u9664 (${selectedFavoriteKeys.size})`}
+                      </button>
+                      <button
+                        type='button'
+                        className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                        onClick={() => {
+                          setIsFavoriteBatchMode(false);
+                          setSelectedFavoriteKeys(new Set());
+                        }}
+                      >
+                        {'\u53d6\u6d88'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type='button'
+                      className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                      onClick={() => {
+                        setIsFavoriteBatchMode(true);
                         setIsPlayBatchMode(false);
                         setSelectedPlayKeys(new Set());
                       }}
                     >
-                      {'\u53d6\u6d88'}
+                      {'\u6279\u91cf\u5904\u7406'}
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type='button'
-                    className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                    onClick={() => {
-                      setIsPlayBatchMode(true);
-                      setIsFavoriteBatchMode(false);
-                      setSelectedFavoriteKeys(new Set());
-                    }}
-                  >
-                    {'\u6279\u91cf\u5904\u7406'}
-                  </button>
-                )
-              ) : null}
-            </div>
-
-            {loadingPlayRecords ? (
-              <div className='px-4 sm:px-6'>
-                <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
-                  {Array.from({ length: 8 }).map((_, index) => (
-                    <div
-                      key={`my-play-skeleton-${index}`}
-                      className='relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'
-                    />
-                  ))}
-                </div>
+                  )
+                ) : null}
               </div>
-            ) : filteredPlayRecords.length > 0 ? (
-              <div className='px-4 sm:px-6'>
-                <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
-                  {filteredPlayRecords.map((record) => {
-                    const { source, id } = parseStorageKey(record.key);
-                    const isSelected = selectedPlayKeys.has(record.key);
-                    return (
-                      <div key={record.key} className='relative'>
+
+              {loadingFavorites ? (
+                <div className='px-4 sm:px-6'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                    {Array.from({ length: 8 }).map((_, index) => (
+                      <div
+                        key={`my-favorite-skeleton-${index}`}
+                        className='relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : filteredFavoriteItems.length > 0 ? (
+                <div className='px-4 sm:px-6'>
+                  <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
+                    {filteredFavoriteItems.map((item) => (
+                      <div key={item.key} className='relative'>
                         <VideoCard
-                          id={id}
-                          source={source}
-                          title={record.title}
-                          poster={record.cover}
-                          source_name={record.source_name}
-                          year={record.year}
-                          episodes={record.total_episodes}
-                          currentEpisode={record.index}
-                          progress={getProgressPercent(record)}
-                          query={record.search_title}
-                          from='playrecord'
-                          type={record.total_episodes > 1 ? 'tv' : ''}
-                          onDelete={() =>
-                            setPlayRecords((prev) =>
-                              prev.filter((item) => item.key !== record.key)
-                            )
-                          }
+                          id={item.id}
+                          source={item.source}
+                          title={item.title}
+                          poster={item.poster}
+                          source_name={item.sourceName}
+                          year={item.year}
+                          episodes={item.episodes}
+                          currentEpisode={item.currentEpisode}
+                          query={item.searchTitle}
+                          from='favorite'
+                          type={item.episodes > 1 ? 'tv' : ''}
                         />
-                        {isPlayBatchMode ? (
+                        {isFavoriteBatchMode ? (
                           <button
                             type='button'
-                            aria-label='toggle-play-record-selection'
+                            aria-label='toggle-favorite-selection'
                             className='absolute inset-0 z-20 rounded-lg bg-black/10 transition-colors hover:bg-black/15'
-                            onClick={() => togglePlaySelection(record.key)}
+                            onClick={() => toggleFavoriteSelection(item.key)}
                           >
                             <span
                               className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${
-                                isSelected
+                                selectedFavoriteKeys.has(item.key)
                                   ? 'border-red-500 bg-red-500 text-white'
                                   : 'border-white/80 bg-black/40 text-transparent'
                               }`}
@@ -943,147 +1098,18 @@ function MyPageClient() {
                           </button>
                         ) : null}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className='py-8 text-center text-sm text-gray-500 dark:text-gray-400'>
-                {playRecords.length === 0
-                  ? '\u6682\u65e0\u5386\u53f2\u8bb0\u5f55'
-                  : '\u672a\u627e\u5230\u5339\u914d\u7684\u5386\u53f2\u8bb0\u5f55'}
-              </div>
-            )}
-            </section>
-          ) : activeTab === 'favorite' ? (
-            <section className='space-y-4'>
-            <div className='px-4 sm:px-6'>
-              <div className='relative'>
-                <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
-                <input
-                  type='text'
-                  value={favoriteSearchKeyword}
-                  onChange={(event) =>
-                    setFavoriteSearchKeyword(event.target.value)
-                  }
-                  placeholder='搜索收藏夹'
-                  className='h-10 w-full rounded-xl border border-gray-200 bg-white/80 pl-9 pr-9 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300/40 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/30'
-                />
-                {favoriteSearchKeyword ? (
-                  <button
-                    type='button'
-                    aria-label='clear-favorite-search'
-                    onClick={() => setFavoriteSearchKeyword('')}
-                    className='absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
-                  >
-                    <X className='h-4 w-4' />
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            <div className='flex items-center justify-between'>
-              <h2 className='flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200'>
-                <Heart className='h-5 w-5' />
-                {'\u6211\u7684\u6536\u85cf\u5939'}
-              </h2>
-              {!loadingFavorites && favoriteItems.length > 0 ? (
-                isFavoriteBatchMode ? (
-                  <div className='flex items-center gap-3'>
-                    <button
-                      type='button'
-                      className='text-sm text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:text-gray-400'
-                      disabled={selectedFavoriteKeys.size === 0}
-                      onClick={() => setDeleteTarget('favorite')}
-                    >
-                      {`\u5220\u9664 (${selectedFavoriteKeys.size})`}
-                    </button>
-                    <button
-                      type='button'
-                      className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                      onClick={() => {
-                        setIsFavoriteBatchMode(false);
-                        setSelectedFavoriteKeys(new Set());
-                      }}
-                    >
-                      {'\u53d6\u6d88'}
-                    </button>
+                    ))}
                   </div>
-                ) : (
-                  <button
-                    type='button'
-                    className='text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                    onClick={() => {
-                      setIsFavoriteBatchMode(true);
-                      setIsPlayBatchMode(false);
-                      setSelectedPlayKeys(new Set());
-                    }}
-                  >
-                    {'\u6279\u91cf\u5904\u7406'}
-                  </button>
-                )
-              ) : null}
-            </div>
-
-            {loadingFavorites ? (
-              <div className='px-4 sm:px-6'>
-                <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
-                  {Array.from({ length: 8 }).map((_, index) => (
-                    <div
-                      key={`my-favorite-skeleton-${index}`}
-                      className='relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'
-                    />
-                  ))}
                 </div>
-              </div>
-            ) : filteredFavoriteItems.length > 0 ? (
-              <div className='px-4 sm:px-6'>
-                <div className='grid grid-cols-2 gap-x-2 gap-y-14 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8 sm:gap-y-20'>
-                  {filteredFavoriteItems.map((item) => (
-                    <div key={item.key} className='relative'>
-                      <VideoCard
-                        id={item.id}
-                        source={item.source}
-                        title={item.title}
-                        poster={item.poster}
-                        source_name={item.sourceName}
-                        year={item.year}
-                        episodes={item.episodes}
-                        currentEpisode={item.currentEpisode}
-                        query={item.searchTitle}
-                        from='favorite'
-                        type={item.episodes > 1 ? 'tv' : ''}
-                      />
-                      {isFavoriteBatchMode ? (
-                        <button
-                          type='button'
-                          aria-label='toggle-favorite-selection'
-                          className='absolute inset-0 z-20 rounded-lg bg-black/10 transition-colors hover:bg-black/15'
-                          onClick={() => toggleFavoriteSelection(item.key)}
-                        >
-                          <span
-                            className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${
-                              selectedFavoriteKeys.has(item.key)
-                                ? 'border-red-500 bg-red-500 text-white'
-                                : 'border-white/80 bg-black/40 text-transparent'
-                            }`}
-                          >
-                            {'\u2713'}
-                          </span>
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
+              ) : (
+                <div className='px-4 sm:px-6'>
+                  <div className='py-8 text-center text-sm text-gray-500 dark:text-gray-400'>
+                    {favoriteItems.length === 0
+                      ? '\u6682\u65e0\u6536\u85cf\u5185\u5bb9'
+                      : '\u672a\u627e\u5230\u5339\u914d\u7684\u6536\u85cf\u5185\u5bb9'}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className='px-4 sm:px-6'>
-                <div className='py-8 text-center text-sm text-gray-500 dark:text-gray-400'>
-                  {favoriteItems.length === 0
-                    ? '\u6682\u65e0\u6536\u85cf\u5185\u5bb9'
-                    : '\u672a\u627e\u5230\u5339\u914d\u7684\u6536\u85cf\u5185\u5bb9'}
-                </div>
-              </div>
-            )}
+              )}
             </section>
           ) : (
             <section className='space-y-4 px-4 sm:px-6'>
@@ -1100,7 +1126,7 @@ function MyPageClient() {
                         观看类型偏好
                       </p>
                       <p className='text-xs text-gray-400'>
-                        基于 TMDB 类型统计最近观看内容
+                        基于类型统计最近观看内容
                       </p>
                     </div>
                     <div className='inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800'>
@@ -1135,25 +1161,29 @@ function MyPageClient() {
                           />
                           <Tooltip
                             cursor={false}
-                          content={({ active, payload }) => {
-                            if (!active || !payload?.length) return null;
-                            const genre =
-                              typeof payload[0]?.payload?.genre === 'string'
-                                ? payload[0].payload.genre
-                                : '';
-                            const posters =
-                              genre && (genre as SupportedGenre) in genrePosterMap
-                                ? genrePosterMap[genre as SupportedGenre] || []
-                                : [];
-                            const displayPosters = posters.slice(
-                              0,
-                              GENRE_TOOLTIP_POSTER_LIMIT
-                            );
-                            const hasMorePosters =
-                              posters.length > GENRE_TOOLTIP_POSTER_LIMIT;
-                            const value = payload[0]?.value;
-                            const numericValue =
-                              typeof value === 'number' ? value : Number(value || 0);
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null;
+                              const genre =
+                                typeof payload[0]?.payload?.genre === 'string'
+                                  ? payload[0].payload.genre
+                                  : '';
+                              const posters =
+                                genre &&
+                                (genre as SupportedGenre) in genrePosterMap
+                                  ? genrePosterMap[genre as SupportedGenre] ||
+                                    []
+                                  : [];
+                              const displayPosters = posters.slice(
+                                0,
+                                GENRE_TOOLTIP_POSTER_LIMIT
+                              );
+                              const hasMorePosters =
+                                posters.length > GENRE_TOOLTIP_POSTER_LIMIT;
+                              const value = payload[0]?.value;
+                              const numericValue =
+                                typeof value === 'number'
+                                  ? value
+                                  : Number(value || 0);
 
                               return (
                                 <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
@@ -1162,9 +1192,14 @@ function MyPageClient() {
                                   </p>
                                   <div className='flex items-center gap-2'>
                                     <span className='inline-block h-2 w-2 rounded-full bg-cyan-400' />
-                                    <span className='text-white/85'>{genre}</span>
+                                    <span className='text-white/85'>
+                                      {genre}
+                                    </span>
                                     <span className='font-semibold text-white'>
-                                      {Number.isFinite(numericValue) ? numericValue : 0} 部
+                                      {Number.isFinite(numericValue)
+                                        ? numericValue
+                                        : 0}{' '}
+                                      部
                                     </span>
                                   </div>
                                   {displayPosters.length > 0 ? (
@@ -1240,11 +1275,15 @@ function MyPageClient() {
                                 typeof payload[0]?.dataKey === 'string'
                                   ? payload[0].dataKey
                                   : '';
-                              const format = dataKey === 'tv' ? '连续剧' : '电影';
-                              const dotColor = dataKey === 'tv' ? '#22d3ee' : '#60a5fa';
+                              const format =
+                                dataKey === 'tv' ? '连续剧' : '电影';
+                              const dotColor =
+                                dataKey === 'tv' ? '#22d3ee' : '#60a5fa';
                               const value = payload[0]?.value;
                               const numericValue =
-                                typeof value === 'number' ? value : Number(value || 0);
+                                typeof value === 'number'
+                                  ? value
+                                  : Number(value || 0);
 
                               return (
                                 <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
@@ -1256,9 +1295,14 @@ function MyPageClient() {
                                       className='inline-block h-2 w-2 rounded-full'
                                       style={{ backgroundColor: dotColor }}
                                     />
-                                    <span className='text-white/85'>{format}</span>
+                                    <span className='text-white/85'>
+                                      {format}
+                                    </span>
                                     <span className='font-semibold text-white'>
-                                      {Number.isFinite(numericValue) ? numericValue : 0} 条
+                                      {Number.isFinite(numericValue)
+                                        ? numericValue
+                                        : 0}{' '}
+                                      条
                                     </span>
                                   </div>
                                 </div>
@@ -1288,10 +1332,21 @@ function MyPageClient() {
                                 );
                                 return (
                                   <text x={cx} y={cy} textAnchor='middle'>
-                                    <tspan x={cx} y={cy - 12} fill='#fff' fontSize='24' fontWeight='700'>
+                                    <tspan
+                                      x={cx}
+                                      y={cy - 12}
+                                      fill='#fff'
+                                      fontSize='24'
+                                      fontWeight='700'
+                                    >
                                       {watchFormatStats.total.toLocaleString()}
                                     </tspan>
-                                    <tspan x={cx} y={cy + 10} fill='#9ca3af' fontSize='12'>
+                                    <tspan
+                                      x={cx}
+                                      y={cy + 10}
+                                      fill='#9ca3af'
+                                      fontSize='12'
+                                    >
                                       总观看
                                     </tspan>
                                   </text>
@@ -1328,7 +1383,9 @@ function MyPageClient() {
                         style={{ backgroundColor: '#22d3ee' }}
                       />
                       <span>连续剧</span>
-                      <span className='text-gray-300'>{watchFormatStats.tv}</span>
+                      <span className='text-gray-300'>
+                        {watchFormatStats.tv}
+                      </span>
                     </div>
                     <div className='inline-flex items-center gap-1.5'>
                       <span
@@ -1336,7 +1393,9 @@ function MyPageClient() {
                         style={{ backgroundColor: '#60a5fa' }}
                       />
                       <span>电影</span>
-                      <span className='text-gray-300'>{watchFormatStats.movie}</span>
+                      <span className='text-gray-300'>
+                        {watchFormatStats.movie}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1401,16 +1460,23 @@ function MyPageClient() {
                               : '';
                           const value = payload[0]?.value;
                           const numericValue =
-                            typeof value === 'number' ? value : Number(value || 0);
+                            typeof value === 'number'
+                              ? value
+                              : Number(value || 0);
 
                           return (
                             <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
-                              <p className='mb-1 text-[11px] text-white/70'>{range}</p>
+                              <p className='mb-1 text-[11px] text-white/70'>
+                                {range}
+                              </p>
                               <div className='flex items-center gap-2'>
                                 <span className='inline-block h-2 w-2 rounded-full bg-sky-400' />
                                 <span className='text-white/85'>观看数</span>
                                 <span className='font-semibold text-white'>
-                                  {Number.isFinite(numericValue) ? numericValue : 0} 次
+                                  {Number.isFinite(numericValue)
+                                    ? numericValue
+                                    : 0}{' '}
+                                  次
                                 </span>
                               </div>
                             </div>
@@ -1438,7 +1504,9 @@ function MyPageClient() {
       >
         <AlertDialogContent className='max-w-sm rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'>
           <AlertDialogHeader>
-            <AlertDialogTitle>{'\u786e\u8ba4\u5220\u9664\u5417\uff1f'}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {'\u786e\u8ba4\u5220\u9664\u5417\uff1f'}
+            </AlertDialogTitle>
             <AlertDialogDescription className='text-zinc-600 dark:text-zinc-300'>
               {deleteTarget === 'play'
                 ? `\u5c06\u5220\u9664 ${selectedPlayKeys.size} \u6761\u5386\u53f2\u8bb0\u5f55\u3002`
