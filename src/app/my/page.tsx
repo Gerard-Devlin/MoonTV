@@ -61,6 +61,7 @@ interface FavoriteItem {
 type ActiveTab = 'play' | 'favorite' | 'analysis';
 
 type AnalysisView = 'day' | 'week' | 'month' | 'year';
+type GenreScope = 'all' | 'movie' | 'tv';
 
 interface AnalysisDataPoint {
   label: string;
@@ -71,6 +72,13 @@ interface AnalysisDataPoint {
 interface GenreRadarDataPoint {
   genre: string;
   count: number;
+}
+
+type GenrePosterMap = Partial<Record<SupportedGenre, string[]>>;
+
+interface GenreAnalysisState {
+  data: GenreRadarDataPoint[];
+  posters: GenrePosterMap;
 }
 
 interface WatchFormatStats {
@@ -118,6 +126,13 @@ const ANALYSIS_VIEW_CONFIG = {
 } as const;
 
 const GENRE_ANALYSIS_MAX_ITEMS = 80;
+const GENRE_TOOLTIP_POSTER_LIMIT = 3;
+const GENRE_TOOLTIP_POSTER_CACHE_LIMIT = 8;
+const GENRE_SCOPE_OPTIONS: Array<{ value: GenreScope; label: string }> = [
+  { value: 'all', label: '全部' },
+  { value: 'movie', label: '电影' },
+  { value: 'tv', label: '剧集' },
+];
 const SUPPORTED_GENRES = [
   '冒险',
   '剧情',
@@ -191,6 +206,20 @@ const GENRE_ALIAS_MAP: Record<string, SupportedGenre> = {
 function normalizeGenreName(rawGenre: string): SupportedGenre | null {
   const normalized = rawGenre.trim().toLowerCase();
   return GENRE_ALIAS_MAP[normalized] || null;
+}
+
+function appendPosterToGenreMap(
+  map: Map<SupportedGenre, string[]>,
+  genre: SupportedGenre,
+  poster: string,
+  limit: number
+): void {
+  const trimmedPoster = poster.trim();
+  if (!trimmedPoster) return;
+  const existing = map.get(genre) || [];
+  if (existing.includes(trimmedPoster)) return;
+  if (existing.length >= limit) return;
+  map.set(genre, [...existing, trimmedPoster]);
 }
 
 function parseStorageKey(key: string): { source: string; id: string } {
@@ -356,8 +385,15 @@ function MyPageClient() {
   const [playSearchKeyword, setPlaySearchKeyword] = useState('');
   const [favoriteSearchKeyword, setFavoriteSearchKeyword] = useState('');
   const [analysisView, setAnalysisView] = useState<AnalysisView>('week');
-  const [genreRadarData, setGenreRadarData] = useState<GenreRadarDataPoint[]>([]);
+  const [genreScope, setGenreScope] = useState<GenreScope>('all');
   const [loadingGenreRadar, setLoadingGenreRadar] = useState(false);
+  const [genreAnalysisByScope, setGenreAnalysisByScope] = useState<
+    Record<GenreScope, GenreAnalysisState>
+  >({
+    all: { data: [], posters: {} },
+    movie: { data: [], posters: {} },
+    tv: { data: [], posters: {} },
+  });
   const genreCacheRef = useRef<Map<string, string[]>>(new Map());
 
   const updatePlayRecords = useCallback((records: Record<string, PlayRecord>) => {
@@ -591,7 +627,11 @@ function MyPageClient() {
   useEffect(() => {
     if (activeTab !== 'analysis' || loadingPlayRecords) return;
     if (playRecords.length === 0) {
-      setGenreRadarData([]);
+      setGenreAnalysisByScope({
+        all: { data: [], posters: {} },
+        movie: { data: [], posters: {} },
+        tv: { data: [], posters: {} },
+      });
       return;
     }
 
@@ -606,27 +646,88 @@ function MyPageClient() {
 
         if (cancelled) return;
 
-        const genreCountMap = new Map<SupportedGenre, number>();
-        for (const result of settled) {
-          if (result.status !== 'fulfilled') continue;
-          const uniqueGenres = new Set(result.value);
-          uniqueGenres.forEach((genre) => {
-            const normalizedGenre = normalizeGenreName(genre);
-            if (!normalizedGenre) return;
-            genreCountMap.set(
-              normalizedGenre,
-              (genreCountMap.get(normalizedGenre) || 0) + 1
-            );
-          });
-        }
+        const allCountMap = new Map<SupportedGenre, number>();
+        const movieCountMap = new Map<SupportedGenre, number>();
+        const tvCountMap = new Map<SupportedGenre, number>();
+        const allPosterMap = new Map<SupportedGenre, string[]>();
+        const moviePosterMap = new Map<SupportedGenre, string[]>();
+        const tvPosterMap = new Map<SupportedGenre, string[]>();
 
-        const normalizedGenres = SUPPORTED_GENRES.map((genre) => ({
-          genre,
-          count: genreCountMap.get(genre) || 0,
-        }))
-          .filter((item) => item.count > 0)
-          .sort((a, b) => b.count - a.count);
-        setGenreRadarData(normalizedGenres);
+        settled.forEach((result, index) => {
+          if (result.status !== 'fulfilled') return;
+          const record = targets[index];
+          const uniqueGenres = new Set<SupportedGenre>();
+
+          for (const rawGenre of result.value) {
+            const normalizedGenre = normalizeGenreName(rawGenre);
+            if (!normalizedGenre) continue;
+            uniqueGenres.add(normalizedGenre);
+          }
+
+          const recordPoster = (record?.cover || '').trim();
+          const isMovie = (record?.total_episodes || 0) <= 1;
+          uniqueGenres.forEach((genre) => {
+            allCountMap.set(genre, (allCountMap.get(genre) || 0) + 1);
+            if (isMovie) {
+              movieCountMap.set(genre, (movieCountMap.get(genre) || 0) + 1);
+            } else {
+              tvCountMap.set(genre, (tvCountMap.get(genre) || 0) + 1);
+            }
+
+            if (!recordPoster) return;
+            appendPosterToGenreMap(
+              allPosterMap,
+              genre,
+              recordPoster,
+              GENRE_TOOLTIP_POSTER_CACHE_LIMIT
+            );
+            if (isMovie) {
+              appendPosterToGenreMap(
+                moviePosterMap,
+                genre,
+                recordPoster,
+                GENRE_TOOLTIP_POSTER_CACHE_LIMIT
+              );
+            } else {
+              appendPosterToGenreMap(
+                tvPosterMap,
+                genre,
+                recordPoster,
+                GENRE_TOOLTIP_POSTER_CACHE_LIMIT
+              );
+            }
+          });
+        });
+
+        const toScopeState = (
+          countMap: Map<SupportedGenre, number>,
+          posterMap: Map<SupportedGenre, string[]>
+        ): GenreAnalysisState => {
+          const data = SUPPORTED_GENRES.map((genre) => ({
+            genre,
+            count: countMap.get(genre) || 0,
+          }))
+            .filter((item) => item.count > 0)
+            .sort((a, b) => b.count - a.count);
+
+          const posters: GenrePosterMap = {};
+          for (const genre of SUPPORTED_GENRES) {
+            const genrePosters = (posterMap.get(genre) || []).slice(
+              0,
+              GENRE_TOOLTIP_POSTER_CACHE_LIMIT
+            );
+            if (genrePosters.length > 0) {
+              posters[genre] = genrePosters;
+            }
+          }
+          return { data, posters };
+        };
+
+        setGenreAnalysisByScope({
+          all: toScopeState(allCountMap, allPosterMap),
+          movie: toScopeState(movieCountMap, moviePosterMap),
+          tv: toScopeState(tvCountMap, tvPosterMap),
+        });
       } finally {
         if (!cancelled) setLoadingGenreRadar(false);
       }
@@ -637,6 +738,10 @@ function MyPageClient() {
       cancelled = true;
     };
   }, [activeTab, fetchGenresForRecord, loadingPlayRecords, playRecords]);
+
+  const activeGenreAnalysis = genreAnalysisByScope[genreScope];
+  const genreRadarData = activeGenreAnalysis.data;
+  const genrePosterMap = activeGenreAnalysis.posters;
 
   const togglePlaySelection = (key: string) => {
     setSelectedPlayKeys((prev) => {
@@ -989,13 +1094,31 @@ function MyPageClient() {
 
               <div className='grid gap-4 lg:grid-cols-2'>
                 <div className='rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
-                  <div className='mb-3'>
-                    <p className='text-sm font-semibold text-gray-100'>
-                      观看类型偏好
-                    </p>
-                    <p className='text-xs text-gray-400'>
-                      基于 TMDB 类型统计最近观看内容
-                    </p>
+                  <div className='mb-3 flex items-start justify-between gap-3'>
+                    <div>
+                      <p className='text-sm font-semibold text-gray-100'>
+                        观看类型偏好
+                      </p>
+                      <p className='text-xs text-gray-400'>
+                        基于 TMDB 类型统计最近观看内容
+                      </p>
+                    </div>
+                    <div className='inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800'>
+                      {GENRE_SCOPE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type='button'
+                          onClick={() => setGenreScope(option.value)}
+                          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                            genreScope === option.value
+                              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className='h-72 w-full sm:h-80'>
                     {loadingGenreRadar ? (
@@ -1012,15 +1135,25 @@ function MyPageClient() {
                           />
                           <Tooltip
                             cursor={false}
-                            content={({ active, payload }) => {
-                              if (!active || !payload?.length) return null;
-                              const genre =
-                                typeof payload[0]?.payload?.genre === 'string'
-                                  ? payload[0].payload.genre
-                                  : '';
-                              const value = payload[0]?.value;
-                              const numericValue =
-                                typeof value === 'number' ? value : Number(value || 0);
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const genre =
+                              typeof payload[0]?.payload?.genre === 'string'
+                                ? payload[0].payload.genre
+                                : '';
+                            const posters =
+                              genre && (genre as SupportedGenre) in genrePosterMap
+                                ? genrePosterMap[genre as SupportedGenre] || []
+                                : [];
+                            const displayPosters = posters.slice(
+                              0,
+                              GENRE_TOOLTIP_POSTER_LIMIT
+                            );
+                            const hasMorePosters =
+                              posters.length > GENRE_TOOLTIP_POSTER_LIMIT;
+                            const value = payload[0]?.value;
+                            const numericValue =
+                              typeof value === 'number' ? value : Number(value || 0);
 
                               return (
                                 <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
@@ -1034,6 +1167,27 @@ function MyPageClient() {
                                       {Number.isFinite(numericValue) ? numericValue : 0} 部
                                     </span>
                                   </div>
+                                  {displayPosters.length > 0 ? (
+                                    <div className='mt-2 flex items-center gap-1.5'>
+                                      {displayPosters.map((poster, index) => (
+                                        <img
+                                          key={`${genre}-poster-${index}`}
+                                          src={poster}
+                                          alt={`${genre} 海报 ${index + 1}`}
+                                          className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
+                                        />
+                                      ))}
+                                      {hasMorePosters ? (
+                                        <div className='flex h-24 w-16 items-center justify-center rounded bg-white/5 text-xl leading-none font-bold text-white/80 ring-1 ring-white/10'>
+                                          ...
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : (
+                                    <p className='mt-2 text-[11px] text-white/55'>
+                                      暂无最近海报
+                                    </p>
+                                  )}
                                 </div>
                               );
                             }}
