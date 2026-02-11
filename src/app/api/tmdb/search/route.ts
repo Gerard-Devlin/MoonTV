@@ -18,6 +18,7 @@ interface TmdbMovieItem {
   overview?: string;
   release_date?: string;
   popularity?: number;
+  vote_average?: number;
   genre_ids?: number[];
 }
 
@@ -28,6 +29,7 @@ interface TmdbTvItem {
   overview?: string;
   first_air_date?: string;
   popularity?: number;
+  vote_average?: number;
   genre_ids?: number[];
 }
 
@@ -88,6 +90,12 @@ function toYear(value?: string): string {
   return /^\d{4}$/.test(year) ? year : 'unknown';
 }
 
+function toScore(value?: number): string {
+  if (typeof value !== 'number') return '';
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return value.toFixed(1);
+}
+
 function scoreMatch(title: string, query: string): number {
   const normalizedTitle = normalizeText(title).toLowerCase();
   const normalizedQuery = normalizeText(query).toLowerCase();
@@ -142,6 +150,7 @@ function mapMovieCandidate(raw: TmdbMovieItem, query: string): SearchMediaCandid
       source: 'tmdb',
       source_name: 'TMDB',
       year: toYear(raw.release_date),
+      score: toScore(raw.vote_average),
       desc: normalizeText(raw.overview),
       type_name: 'movie',
       douban_id: 0,
@@ -166,6 +175,7 @@ function mapTvCandidate(raw: TmdbTvItem, query: string): SearchMediaCandidate | 
       source: 'tmdb',
       source_name: 'TMDB',
       year: toYear(raw.first_air_date),
+      score: toScore(raw.vote_average),
       desc: normalizeText(raw.overview),
       type_name: 'tv',
       douban_id: 0,

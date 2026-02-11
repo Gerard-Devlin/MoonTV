@@ -632,7 +632,11 @@ function DoubanPageClient() {
   const runtimeLeft = (runtimeMinValue / MAX_RUNTIME_MINUTES) * 100;
   const runtimeRight = 100 - (runtimeMaxValue / MAX_RUNTIME_MINUTES) * 100;
   return (
-    <PageLayout activePath={activePath} disableMobileTopPadding={hasTopHero}>
+    <PageLayout
+      activePath={activePath}
+      disableMobileTopPadding={hasTopHero}
+      showDesktopTopSearch={isTmdbType}
+    >
       <div
         className={`overflow-visible ${
           hasTopHero

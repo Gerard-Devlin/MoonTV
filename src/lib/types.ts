@@ -91,6 +91,7 @@ export interface SearchResult {
   source_name: string;
   class?: string;
   year: string;
+  score?: string;
   desc?: string;
   type_name?: string;
   douban_id?: number;

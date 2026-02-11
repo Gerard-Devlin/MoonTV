@@ -1,5 +1,6 @@
 import { BackButton } from './BackButton';
 import BackToTop from './BackToTop';
+import DesktopTopSearch from './DesktopTopSearch';
 import MobileNavController from './MobileNavController';
 import Sidebar from './Sidebar';
 import { UserMenu } from './UserMenu';
@@ -9,6 +10,7 @@ interface PageLayoutProps {
   activePath?: string;
   disableMobileTopPadding?: boolean;
   forceShowBackButton?: boolean;
+  showDesktopTopSearch?: boolean;
 }
 
 const PageLayout = ({
@@ -16,6 +18,7 @@ const PageLayout = ({
   activePath = '/',
   disableMobileTopPadding = false,
   forceShowBackButton = false,
+  showDesktopTopSearch = false,
 }: PageLayoutProps) => {
   const isHomePage = activePath === '/';
   const showBackButton = forceShowBackButton || ['/play'].includes(activePath);
@@ -40,7 +43,8 @@ const PageLayout = ({
             </div>
           )}
 
-          <div className='absolute top-2 right-4 z-20 hidden md:flex items-center gap-2'>
+          <div className='absolute top-2 right-4 z-[700] hidden md:flex items-center gap-2'>
+            {showDesktopTopSearch ? <DesktopTopSearch /> : null}
             <UserMenu />
           </div>
 

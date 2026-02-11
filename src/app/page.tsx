@@ -107,7 +107,7 @@ function HomeClient() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout showDesktopTopSearch>
       <div className='px-2 sm:px-10 pb-4 sm:pb-8 overflow-visible'>
         <TmdbHeroBanner />
 
