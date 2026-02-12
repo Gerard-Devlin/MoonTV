@@ -2681,7 +2681,7 @@ function PlayPageClient() {
   const playBackground = tmdbDetail?.backdrop || tmdbDetail?.poster || '';
 
   return (
-    <PageLayout activePath='/play'>
+    <PageLayout activePath='/play' disableMobileTopPadding>
       <div className='relative'>
         {playBackground ? (
           <div className='pointer-events-none absolute inset-0 -z-10 overflow-hidden'>
@@ -2689,14 +2689,14 @@ function PlayPageClient() {
               src={processImageUrl(playBackground)}
               alt=''
               aria-hidden='true'
-              className='h-full w-full object-cover object-center brightness-[0.42]'
+              className='h-full w-full object-cover object-center brightness-[0.38]'
             />
-            <div className='absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent' />
-            <div className='absolute inset-0 bg-gradient-to-r from-black/45 to-transparent' />
+            <div className='absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent' />
+            <div className='absolute inset-0 bg-gradient-to-r from-black/50 to-transparent' />
           </div>
         ) : null}
 
-        <div className='relative z-[1] flex flex-col gap-3 py-4 px-5 lg:px-[3rem] 2xl:px-20'>
+        <div className='relative z-[1] flex flex-col gap-3 px-5 pb-4 pt-[calc(env(safe-area-inset-top)+4.5rem)] md:pt-4 lg:px-[3rem] 2xl:px-20'>
         {/* 第一行：影片标题 */}
         <div className='py-1'>
           <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>

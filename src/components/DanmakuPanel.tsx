@@ -481,7 +481,7 @@ export default function DanmakuPanel({
       </div>
 
       {onUploadDanmaku && (
-        <div className='mt-3 flex-shrink-0 border-t border-gray-200 pt-3 dark:border-gray-700'>
+        <div className='mt-3 flex-shrink-0 border-t border-gray-200 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:pb-2 dark:border-gray-700'>
           <input
             ref={fileInputRef}
             type='file'
