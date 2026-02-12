@@ -1269,7 +1269,7 @@ export default function VideoCard({
         onOpenChange={setDeleteDialogOpen}
       >
         <AlertDialogContent
-          className='max-w-sm rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+          className='w-[min(92vw,24rem)] max-w-sm overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/90 p-6 text-zinc-900 shadow-[0_30px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl dark:border-zinc-700/60 dark:bg-zinc-900/85 dark:text-zinc-100'
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -1282,7 +1282,7 @@ export default function VideoCard({
           <AlertDialogFooter>
             <AlertDialogCancel
               disabled={deleteLoading}
-              className='border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+              className='rounded-xl border-zinc-200/80 bg-white/80 text-zinc-700 hover:bg-white dark:border-zinc-600/70 dark:bg-zinc-800/80 dark:text-zinc-200 dark:hover:bg-zinc-700/90'
             >
               {'\u53d6\u6d88'}
             </AlertDialogCancel>
@@ -1292,7 +1292,7 @@ export default function VideoCard({
                 event.preventDefault();
                 void handleConfirmDeleteRecord();
               }}
-              className='bg-red-600 text-white hover:bg-red-700'
+              className='rounded-xl bg-red-600/95 text-white shadow-[0_10px_20px_rgba(220,38,38,0.25)] hover:bg-red-600 dark:bg-red-500/90 dark:hover:bg-red-500'
             >
               {deleteLoading ? '\u5220\u9664\u4e2d...' : '\u786e\u5b9a\u5220\u9664'}
             </AlertDialogAction>
@@ -1305,7 +1305,7 @@ export default function VideoCard({
         onOpenChange={setFavoriteDeleteDialogOpen}
       >
         <AlertDialogContent
-          className='max-w-sm rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+          className='w-[min(92vw,24rem)] max-w-sm overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/90 p-6 text-zinc-900 shadow-[0_30px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl dark:border-zinc-700/60 dark:bg-zinc-900/85 dark:text-zinc-100'
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -1318,7 +1318,7 @@ export default function VideoCard({
           <AlertDialogFooter>
             <AlertDialogCancel
               disabled={favoriteDeleteLoading}
-              className='border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+              className='rounded-xl border-zinc-200/80 bg-white/80 text-zinc-700 hover:bg-white dark:border-zinc-600/70 dark:bg-zinc-800/80 dark:text-zinc-200 dark:hover:bg-zinc-700/90'
             >
               {'\u53d6\u6d88'}
             </AlertDialogCancel>
@@ -1328,7 +1328,7 @@ export default function VideoCard({
                 event.preventDefault();
                 void handleConfirmDeleteFavorite();
               }}
-              className='bg-red-600 text-white hover:bg-red-700'
+              className='rounded-xl bg-red-600/95 text-white shadow-[0_10px_20px_rgba(220,38,38,0.25)] hover:bg-red-600 dark:bg-red-500/90 dark:hover:bg-red-500'
             >
               {favoriteDeleteLoading
                 ? '\u5904\u7406\u4e2d...'

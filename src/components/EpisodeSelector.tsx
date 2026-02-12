@@ -302,7 +302,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   );
 
   return (
-    <div className='md:ml-2 px-4 py-0 h-full rounded-xl bg-black/10 dark:bg-white/5 flex flex-col border border-white/0 dark:border-white/30 overflow-hidden'>
+    <div className='md:ml-2 px-4 py-0 h-full rounded-xl bg-white/58 dark:bg-slate-900/45 backdrop-blur-xl flex flex-col border border-white/45 dark:border-white/20 shadow-lg overflow-hidden'>
       {/* 主要的 Tab 切换 - 无缝融入设计 */}
       <div className='flex mb-1 -mx-6 flex-shrink-0'>
         {totalEpisodes > 1 && (

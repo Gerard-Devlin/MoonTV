@@ -7,15 +7,19 @@ import Hls from 'hls.js';
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarDays,
+  Clock3,
   Film,
   Heart,
   RefreshCw,
   Search,
   Sparkles,
+  Star,
+  Users,
   Zap,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   deleteFavorite,
@@ -43,6 +47,33 @@ declare global {
   }
 }
 
+interface TmdbPlayDetail {
+  id: number;
+  mediaType: 'movie' | 'tv';
+  title: string;
+  logo?: string;
+  overview: string;
+  backdrop: string;
+  poster: string;
+  score: string;
+  voteCount: number;
+  year: string;
+  runtime: number | null;
+  seasons: number | null;
+  episodes: number | null;
+  contentRating: string;
+  genres: string[];
+  language: string;
+  popularity: number | null;
+  cast: Array<{
+    id: number;
+    name: string;
+    character: string;
+    profile?: string;
+  }>;
+  trailerUrl: string;
+}
+
 function PlayPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,6 +88,7 @@ function PlayPageClient() {
   const [loadingMessage, setLoadingMessage] = useState('正在搜索播放源...');
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SearchResult | null>(null);
+  const [tmdbDetail, setTmdbDetail] = useState<TmdbPlayDetail | null>(null);
 
   // 收藏状态
   const [favorited, setFavorited] = useState(false);
@@ -202,6 +234,10 @@ function PlayPageClient() {
 
   const artPlayerRef = useRef<any>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
+  const tmdbDetailCacheRef = useRef<Map<string, TmdbPlayDetail | null>>(
+    new Map()
+  );
+  const tmdbDetailRequestIdRef = useRef(0);
   const normalizeCompareText = (value: string): string =>
     (value || '')
       .toLowerCase()
@@ -219,6 +255,11 @@ function PlayPageClient() {
     const tens = Math.floor(value / 10);
     const ones = value % 10;
     return `${digits[tens]}十${ones > 0 ? digits[ones] : ''}`;
+  };
+
+  const normalizeYear = (value?: string): string => {
+    const year = (value || '').trim();
+    return /^\d{4}$/.test(year) ? year : '';
   };
 
   const parseChineseNumeral = (value: string): number => {
@@ -264,6 +305,43 @@ function PlayPageClient() {
       .replace(/\s+/g, ' ')
       .trim();
 
+  const normalizeQueryText = (value: string): string =>
+    (value || '').replace(/\s+/g, ' ').trim();
+
+  const expandQueryVariants = (value: string): string[] => {
+    const base = normalizeQueryText(value);
+    if (!base) return [];
+
+    const variants = new Set<string>();
+    const pushVariant = (input: string) => {
+      const normalized = normalizeQueryText(input);
+      if (!normalized) return;
+      variants.add(normalized);
+    };
+
+    pushVariant(base);
+    pushVariant(base.replace(/\s+/g, ''));
+
+    pushVariant(base.replace(/\s*[：:]\s*/g, ':'));
+    pushVariant(base.replace(/\s*[：:]\s*/g, '：'));
+    pushVariant(base.replace(/\s*[：:]\s*/g, ' '));
+    pushVariant(base.replace(/\s*[：:]\s*/g, ''));
+
+    pushVariant(base.replace(/\s*[-‐‑‒–—]\s*/g, ' '));
+    pushVariant(base.replace(/\s*[-‐‑‒–—]\s*/g, ''));
+    pushVariant(base.replace(/[·•]/g, ' '));
+    pushVariant(base.replace(/[·•]/g, ''));
+
+    pushVariant(
+      base
+        .replace(/\s*[：:]\s*/g, '')
+        .replace(/\s*[-‐‑‒–—]\s*/g, '')
+        .replace(/[·•]/g, '')
+    );
+
+    return Array.from(variants);
+  };
+
   const extractSeasonHints = (value: string): string[] => {
     const text = value || '';
     const hints = new Set<string>();
@@ -308,45 +386,6 @@ function PlayPageClient() {
     const candidates: string[] = [];
     const dedupe = new Set<string>();
 
-    const normalizeQueryText = (value: string): string =>
-      (value || '').replace(/\s+/g, ' ').trim();
-
-    const expandQueryVariants = (value: string): string[] => {
-      const base = normalizeQueryText(value);
-      if (!base) return [];
-
-      const variants = new Set<string>();
-      const pushVariant = (input: string) => {
-        const normalized = normalizeQueryText(input);
-        if (!normalized) return;
-        variants.add(normalized);
-      };
-
-      pushVariant(base);
-
-      // 冒号和空格差异（K-Pop 猎魔女团 / K-Pop：猎魔女团 / K-Pop: 猎魔女团）
-      pushVariant(base.replace(/\s*[：:]\s*/g, ':'));
-      pushVariant(base.replace(/\s*[：:]\s*/g, '：'));
-      pushVariant(base.replace(/\s*[：:]\s*/g, ' '));
-      pushVariant(base.replace(/\s*[：:]\s*/g, ''));
-
-      // 连字符和点号差异（K-Pop / K Pop / KPop）
-      pushVariant(base.replace(/\s*[-‐‑‒–—]\s*/g, ' '));
-      pushVariant(base.replace(/\s*[-‐‑‒–—]\s*/g, ''));
-      pushVariant(base.replace(/[·•]/g, ' '));
-      pushVariant(base.replace(/[·•]/g, ''));
-
-      // 组合兜底：同时移除常见分隔符
-      pushVariant(
-        base
-          .replace(/\s*[：:]\s*/g, '')
-          .replace(/\s*[-‐‑‒–—]\s*/g, '')
-          .replace(/[·•]/g, '')
-      );
-
-      return Array.from(variants);
-    };
-
     const push = (value: string) => {
       const variants = expandQueryVariants(value);
       if (variants.length === 0) return;
@@ -387,6 +426,130 @@ function PlayPageClient() {
 
     return candidates;
   };
+
+  const inferTmdbMediaType = (sourceDetail: SearchResult | null): 'movie' | 'tv' => {
+    const normalizedType = (searchType || '').trim().toLowerCase();
+    if (normalizedType === 'tv') return 'tv';
+    if (normalizedType === 'movie') return 'movie';
+    if ((sourceDetail?.episodes?.length || 0) > 1) return 'tv';
+    return 'movie';
+  };
+
+  const buildTmdbTitleCandidates = (
+    sourceDetail: SearchResult | null,
+    mediaType: 'movie' | 'tv'
+  ): string[] => {
+    const dedupe = new Set<string>();
+    const candidates: string[] = [];
+
+    const push = (value: string) => {
+      const variants = expandQueryVariants(value);
+      variants.forEach((variant) => {
+        const key = variant.toLowerCase();
+        if (dedupe.has(key)) return;
+        dedupe.add(key);
+        candidates.push(variant);
+      });
+    };
+
+    const baseTitles = [
+      sourceDetail?.title || '',
+      videoTitleRef.current || '',
+      searchTitle || '',
+    ];
+    baseTitles.forEach((title) => push(title));
+
+    if (mediaType === 'tv') {
+      baseTitles.forEach((title) => {
+        const stripped = stripSeasonTokensForQuery(title);
+        if (stripped && stripped !== normalizeQueryText(title)) {
+          push(stripped);
+        }
+      });
+    }
+
+    return candidates;
+  };
+
+  const fetchTmdbDetailByParams = async (
+    params: URLSearchParams
+  ): Promise<TmdbPlayDetail | null> => {
+    try {
+      const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+      if (!response.ok) return null;
+      return (await response.json()) as TmdbPlayDetail;
+    } catch {
+      return null;
+    }
+  };
+
+  const resolveTmdbDetailForCurrent = useCallback(
+    async (sourceDetail: SearchResult | null): Promise<TmdbPlayDetail | null> => {
+      const mediaType = inferTmdbMediaType(sourceDetail);
+      const resolvedYear = normalizeYear(sourceDetail?.year || videoYearRef.current);
+      const normalizedTitle = normalizeQueryText(
+        sourceDetail?.title || videoTitleRef.current || searchTitle || ''
+      );
+
+      if (!normalizedTitle && !(sourceDetail?.source === 'tmdb' && sourceDetail.id)) {
+        return null;
+      }
+
+      const cacheKey = [
+        sourceDetail?.source || '',
+        sourceDetail?.id || '',
+        mediaType,
+        resolvedYear,
+        normalizedTitle,
+      ].join('|');
+
+      if (tmdbDetailCacheRef.current.has(cacheKey)) {
+        return tmdbDetailCacheRef.current.get(cacheKey) || null;
+      }
+
+      const fallbackPoster = sourceDetail?.poster || videoCover || '';
+
+      if (sourceDetail?.source === 'tmdb' && /^\d+$/.test(sourceDetail.id || '')) {
+        const byIdParams = new URLSearchParams({
+          id: sourceDetail.id,
+          mediaType,
+        });
+        if (resolvedYear) byIdParams.set('year', resolvedYear);
+        if (fallbackPoster) byIdParams.set('poster', fallbackPoster);
+        const byIdResult = await fetchTmdbDetailByParams(byIdParams);
+        if (byIdResult) {
+          tmdbDetailCacheRef.current.set(cacheKey, byIdResult);
+          return byIdResult;
+        }
+      }
+
+      const titleCandidates = buildTmdbTitleCandidates(sourceDetail, mediaType).slice(
+        0,
+        14
+      );
+      const yearCandidates = resolvedYear ? [resolvedYear, ''] : [''];
+
+      for (const titleCandidate of titleCandidates) {
+        for (const yearCandidate of yearCandidates) {
+          const params = new URLSearchParams({
+            title: titleCandidate,
+            mediaType,
+          });
+          if (yearCandidate) params.set('year', yearCandidate);
+          if (fallbackPoster) params.set('poster', fallbackPoster);
+          const result = await fetchTmdbDetailByParams(params);
+          if (result) {
+            tmdbDetailCacheRef.current.set(cacheKey, result);
+            return result;
+          }
+        }
+      }
+
+      tmdbDetailCacheRef.current.set(cacheKey, null);
+      return null;
+    },
+    [searchTitle, searchType, videoCover]
+  );
 
   const filterSearchResults = (
     items: SearchResult[],
@@ -1167,6 +1330,26 @@ function PlayPageClient() {
       setError(err instanceof Error ? err.message : '换源失败');
     }
   };
+
+  useEffect(() => {
+    const requestId = ++tmdbDetailRequestIdRef.current;
+    setTmdbDetail(null);
+
+    const run = async () => {
+      const resolved = await resolveTmdbDetailForCurrent(detailRef.current);
+      if (tmdbDetailRequestIdRef.current !== requestId) return;
+      setTmdbDetail(resolved);
+    };
+
+    void run();
+  }, [
+    detail?.source,
+    detail?.id,
+    detail?.title,
+    detail?.year,
+    detail?.episodes?.length,
+    resolveTmdbDetailForCurrent,
+  ]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -1964,13 +2147,41 @@ function PlayPageClient() {
     );
   }
 
+  const displayTitle = tmdbDetail?.title || videoTitle || detail?.title || '影片标题';
+  const displayYear = tmdbDetail?.year || detail?.year || videoYear;
+  const displayOverview = tmdbDetail?.overview || detail?.desc || '';
+  const displayPoster = tmdbDetail?.poster || tmdbDetail?.backdrop || videoCover;
+  const displayType =
+    tmdbDetail?.mediaType === 'tv'
+      ? '剧集'
+      : tmdbDetail?.mediaType === 'movie'
+      ? '电影'
+      : detail?.type_name || '';
+  const displayGenres = tmdbDetail?.genres || [];
+  const displayCast = tmdbDetail?.cast || [];
+  const playBackground = tmdbDetail?.backdrop || tmdbDetail?.poster || '';
+
   return (
     <PageLayout activePath='/play'>
-      <div className='flex flex-col gap-3 py-4 px-5 lg:px-[3rem] 2xl:px-20'>
+      <div className='relative'>
+        {playBackground ? (
+          <div className='pointer-events-none absolute inset-0 -z-10 overflow-hidden'>
+            <img
+              src={processImageUrl(playBackground)}
+              alt=''
+              aria-hidden='true'
+              className='h-full w-full object-cover object-center brightness-[0.42]'
+            />
+            <div className='absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent' />
+            <div className='absolute inset-0 bg-gradient-to-r from-black/45 to-transparent' />
+          </div>
+        ) : null}
+
+        <div className='relative z-[1] flex flex-col gap-3 py-4 px-5 lg:px-[3rem] 2xl:px-20'>
         {/* 第一行：影片标题 */}
         <div className='py-1'>
           <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
-            {videoTitle || '影片标题'}
+            {displayTitle}
             {totalEpisodes > 1 && (
               <span className='text-gray-500 dark:text-gray-400'>
                 {` > 第 ${currentEpisodeIndex + 1} 集`}
@@ -2119,8 +2330,27 @@ function PlayPageClient() {
           <div className='md:col-span-3'>
             <div className='p-6 flex flex-col min-h-0'>
               {/* 标题 */}
-              <h1 className='text-3xl font-bold mb-2 tracking-wide flex items-center flex-shrink-0 text-center md:text-left w-full'>
-                {videoTitle || '影片标题'}
+              <div
+                className={`flex w-full items-center ${
+                  tmdbDetail?.logo ? 'mb-1' : 'mb-3'
+                }`}
+              >
+                <div className='min-w-0 flex-1'>
+                  {tmdbDetail?.logo ? (
+                    <>
+                      <img
+                        src={processImageUrl(tmdbDetail.logo)}
+                        alt={`${displayTitle} logo`}
+                        className='mx-0 h-16 w-auto max-w-full object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)] md:h-20'
+                      />
+                      <h1 className='sr-only'>{displayTitle}</h1>
+                    </>
+                  ) : (
+                    <h1 className='text-3xl font-bold tracking-wide text-center md:text-left'>
+                      {displayTitle}
+                    </h1>
+                  )}
+                </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -2130,34 +2360,89 @@ function PlayPageClient() {
                 >
                   <FavoriteIcon filled={favorited} />
                 </button>
-              </h1>
+              </div>
 
               {/* 关键信息行 */}
-              <div className='flex flex-wrap items-center gap-3 text-base mb-4 opacity-80 flex-shrink-0'>
-                {detail?.class && (
-                  <span className='text-blue-600 font-semibold'>
-                    {detail.class}
+              <div className='mb-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-800/90 dark:text-white/90 flex-shrink-0'>
+                {tmdbDetail?.score && (
+                  <span className='inline-flex items-center gap-1 text-yellow-500 dark:text-yellow-400 font-semibold'>
+                    <Star size={14} fill='currentColor' />
+                    {tmdbDetail.score}
+                    {tmdbDetail.voteCount > 0 ? ` (${tmdbDetail.voteCount})` : ''}
                   </span>
                 )}
-                {(detail?.year || videoYear) && (
-                  <span>{detail?.year || videoYear}</span>
-                )}
-                {detail?.source_name && (
-                  <span className='border border-gray-500/60 px-2 py-[1px] rounded'>
-                    {detail.source_name}
+                {displayYear && (
+                  <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
+                    <CalendarDays size={14} />
+                    {displayYear}
                   </span>
                 )}
-                {detail?.type_name && <span>{detail.type_name}</span>}
+                {tmdbDetail?.runtime ? (
+                  <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
+                    <Clock3 size={14} />
+                    {tmdbDetail.runtime}min
+                  </span>
+                ) : null}
+                {tmdbDetail?.mediaType === 'tv' &&
+                tmdbDetail.seasons &&
+                tmdbDetail.episodes ? (
+                  <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
+                    <Users size={14} />
+                    {tmdbDetail.seasons} Seasons / {tmdbDetail.episodes} Episodes
+                  </span>
+                ) : null}
+                {displayType && (
+                  <span className='rounded border border-gray-500/40 bg-white/55 px-1.5 py-0.5 text-[11px] font-medium text-gray-800/95 backdrop-blur-md dark:border-white/35 dark:bg-slate-900/45 dark:text-white/95'>
+                    {displayType}
+                  </span>
+                )}
+                {tmdbDetail?.contentRating && (
+                  <span className='rounded border border-gray-500/40 bg-white/55 px-1.5 py-0.5 text-[11px] font-medium text-gray-800/95 backdrop-blur-md dark:border-white/35 dark:bg-slate-900/45 dark:text-white/95'>
+                    {tmdbDetail.contentRating}
+                  </span>
+                )}
               </div>
-              {/* 剧情简介 */}
-              {detail?.desc && (
-                <div
-                  className='mt-0 text-base leading-relaxed opacity-90 overflow-y-auto pr-2 flex-1 min-h-0 scrollbar-hide'
-                  style={{ whiteSpace: 'pre-line' }}
-                >
-                  {detail.desc}
+              {displayGenres.length > 0 ? (
+                <div className='mt-1 flex flex-wrap gap-2'>
+                  {displayGenres.map((genre) => (
+                    <span
+                      key={`tmdb-genre-${genre}`}
+                      className='rounded-full border border-gray-500/40 bg-white/55 px-2.5 py-1 text-xs text-gray-800/90 backdrop-blur-md dark:border-white/25 dark:bg-slate-900/45 dark:text-white/90'
+                    >
+                      {genre}
+                    </span>
+                  ))}
                 </div>
+              ) : null}
+              {/* 剧情简介 */}
+              {displayOverview && (
+                  <p
+                    className='mt-3 text-sm leading-6 text-gray-700/90 dark:text-white/85 sm:text-base'
+                    style={{ whiteSpace: 'pre-line' }}
+                  >
+                  {displayOverview}
+                </p>
               )}
+              {displayCast.length > 0 ? (
+                <div className='mt-4 space-y-2'>
+                  <p className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
+                    主演
+                  </p>
+                  <div className='flex flex-wrap gap-2'>
+                    {displayCast.slice(0, 12).map((item) => (
+                      <button
+                        type='button'
+                        key={`play-cast-${item.id}-${item.name}`}
+                        onClick={() => router.push(`/person/${item.id}`)}
+                        className='rounded-full border border-gray-500/40 bg-white/55 px-2.5 py-1 text-xs text-gray-800/90 backdrop-blur-md transition-colors hover:bg-white/75 dark:border-white/25 dark:bg-slate-900/45 dark:text-white/90 dark:hover:bg-slate-900/65'
+                      >
+                        {item.name}
+                        {item.character ? ` · ${item.character}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -2165,10 +2450,10 @@ function PlayPageClient() {
           <div className='hidden md:block md:col-span-1 md:order-first'>
             <div className='pl-0 py-4 pr-6'>
               <div className='bg-gray-300 dark:bg-gray-700 aspect-[2/3] flex items-center justify-center rounded-xl overflow-hidden'>
-                {videoCover ? (
+                {displayPoster ? (
                   <img
-                    src={processImageUrl(videoCover)}
-                    alt={videoTitle}
+                    src={processImageUrl(displayPoster)}
+                    alt={displayTitle}
                     className='w-full h-full object-cover'
                   />
                 ) : (
@@ -2179,6 +2464,7 @@ function PlayPageClient() {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </PageLayout>

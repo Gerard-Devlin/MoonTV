@@ -82,6 +82,12 @@ interface TmdbSearchResponse {
   results?: Array<{
     id?: number;
     media_type?: 'movie' | 'tv' | string;
+    title?: string;
+    name?: string;
+    original_title?: string;
+    original_name?: string;
+    release_date?: string;
+    first_air_date?: string;
   }>;
 }
 
@@ -136,6 +142,178 @@ function normalizeYear(value: string | null): string {
 
 function normalizeTitleForCache(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeTitleForMatch(value: string): string {
+  return (value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201c\u201d'"`]/g, ' ')
+    .replace(
+      /[·•:：\-_.()[\]【】「」『』《》〈〉\\/|<>?,;，。！？、!~@#$%^&*+=]+/g,
+      ' '
+    )
+    .replace(/\b(?:season|series|s)\s*0*\d{1,2}\b/gi, ' ')
+    .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*(?:季|部|辑)/gi, ' ')
+    .replace(/\b[a-z]{2,6}\s*[-_ ]\s*\d{2,6}\b/gi, ' ')
+    .replace(/\b[a-z]{2,6}\d{2,6}\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function toCompactTitleForMatch(value: string): string {
+  return normalizeTitleForMatch(value).replace(/\s+/g, '');
+}
+
+function createBigrams(value: string): Map<string, number> {
+  const text = value || '';
+  const result = new Map<string, number>();
+  if (!text) return result;
+  if (text.length === 1) {
+    result.set(text, 1);
+    return result;
+  }
+
+  for (let index = 0; index < text.length - 1; index += 1) {
+    const gram = text.slice(index, index + 2);
+    result.set(gram, (result.get(gram) || 0) + 1);
+  }
+  return result;
+}
+
+function diceCoefficient(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const aBigrams = createBigrams(a);
+  const bBigrams = createBigrams(b);
+  if (aBigrams.size === 0 || bBigrams.size === 0) return 0;
+
+  let intersection = 0;
+  let totalA = 0;
+  let totalB = 0;
+
+  aBigrams.forEach((count) => {
+    totalA += count;
+  });
+  bBigrams.forEach((count) => {
+    totalB += count;
+  });
+
+  aBigrams.forEach((countA, gram) => {
+    const countB = bBigrams.get(gram) || 0;
+    intersection += Math.min(countA, countB);
+  });
+
+  if (totalA + totalB === 0) return 0;
+  return (2 * intersection) / (totalA + totalB);
+}
+
+function containmentScore(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const longer = a.length >= b.length ? a : b;
+  const shorter = a.length >= b.length ? b : a;
+  if (!longer.includes(shorter)) return 0;
+
+  const coverage = shorter.length / longer.length;
+  if (coverage >= 0.92) return 0.98;
+  if (coverage >= 0.75) return 0.9;
+  if (coverage >= 0.6) return 0.8;
+  if (coverage >= 0.45) return 0.68;
+  return coverage * 0.4;
+}
+
+function computeTitleSimilarity(sourceTitle: string, targetTitle: string): number {
+  const source = toCompactTitleForMatch(sourceTitle);
+  const target = toCompactTitleForMatch(targetTitle);
+  if (!source || !target) return 0;
+  if (source === target) return 1;
+
+  const byContainment = containmentScore(source, target);
+  const byDice = diceCoefficient(source, target);
+  return Math.max(byContainment, byDice);
+}
+
+function buildQueryTitleVariants(queryTitle: string): string[] {
+  const variants = new Set<string>();
+  const push = (value: string) => {
+    const normalized = normalizeTitleForMatch(value);
+    if (!normalized) return;
+    variants.add(normalized);
+  };
+
+  const raw = queryTitle || '';
+  push(raw);
+
+  const quoted = raw.match(/[「『“"]([^「」『』“”"]{2,80})[」』”"]/);
+  if (quoted?.[1]) push(quoted[1]);
+
+  const firstChunk = raw.split(/[，。！？!?]/)[0]?.trim();
+  if (firstChunk && firstChunk !== raw) push(firstChunk);
+
+  return Array.from(variants);
+}
+
+function buildResultTitleVariants(item: {
+  title?: string;
+  name?: string;
+  original_title?: string;
+  original_name?: string;
+}): string[] {
+  const variants = new Set<string>();
+  const push = (value?: string) => {
+    const normalized = normalizeTitleForMatch(value || '');
+    if (!normalized) return;
+    variants.add(normalized);
+  };
+
+  push(item.title);
+  push(item.name);
+  push(item.original_title);
+  push(item.original_name);
+
+  return Array.from(variants);
+}
+
+function scoreYearMatch(inputYear: string, candidateYear: string): number {
+  if (!inputYear || !candidateYear) return 0;
+  const delta = Math.abs(Number(inputYear) - Number(candidateYear));
+  if (!Number.isFinite(delta)) return 0;
+  if (delta === 0) return 0.08;
+  if (delta === 1) return 0.03;
+  if (delta >= 2) return -0.08;
+  return 0;
+}
+
+function isLikelyNoisyQueryTitle(title: string): boolean {
+  const raw = title || '';
+  const hasSourceCode =
+    /\b[a-z]{2,6}\s*[-_ ]\s*\d{2,6}\b/i.test(raw) ||
+    /\b[a-z]{2,6}\d{2,6}\b/i.test(raw);
+  const normalizedLength = toCompactTitleForMatch(raw).length;
+  const punctuationCount = (raw.match(/[「」『』【】《》:：,，。!！?？]/g) || [])
+    .length;
+  return hasSourceCode || (normalizedLength >= 18 && punctuationCount >= 3);
+}
+
+function getMinimumSimilarityThreshold(title: string): number {
+  return isLikelyNoisyQueryTitle(title) ? 0.58 : 0.34;
+}
+
+function getBestSimilarityScore(
+  queryVariants: string[],
+  candidateVariants: string[]
+): number {
+  let best = 0;
+  for (const queryVariant of queryVariants) {
+    for (const candidateVariant of candidateVariants) {
+      const score = computeTitleSimilarity(queryVariant, candidateVariant);
+      if (score > best) best = score;
+    }
+  }
+  return best;
 }
 
 function toYear(value?: string): string {
@@ -280,6 +458,8 @@ async function resolveTmdbTargetFromTitle(
   signal: AbortSignal
 ): Promise<{ id: number; mediaType: TmdbMediaType } | null> {
   const otherType: TmdbMediaType = mediaType === 'movie' ? 'tv' : 'movie';
+  const queryVariants = buildQueryTitleVariants(title);
+  const minSimilarity = getMinimumSimilarityThreshold(title);
   const attempts: Array<{
     endpoint: 'movie' | 'tv' | 'multi';
     year?: string;
@@ -320,20 +500,53 @@ async function resolveTmdbTargetFromTitle(
       if (!response.ok) continue;
 
       const payload = (await response.json()) as TmdbSearchResponse;
-      const first = payload.results?.[0];
-      const resolvedId = Number(first?.id);
-      if (!Number.isInteger(resolvedId) || resolvedId <= 0) continue;
+      const candidates = (payload.results || []).slice(0, 8);
+      let bestCandidate:
+        | {
+            id: number;
+            mediaType: TmdbMediaType;
+            score: number;
+          }
+        | null = null;
 
-      if (attempt.endpoint === 'multi') {
-        const resolvedMediaType =
-          first?.media_type === 'movie' || first?.media_type === 'tv'
-            ? first.media_type
-            : null;
-        if (!resolvedMediaType) continue;
-        return { id: resolvedId, mediaType: resolvedMediaType };
+      for (const candidate of candidates) {
+        const candidateId = Number(candidate.id);
+        if (!Number.isInteger(candidateId) || candidateId <= 0) continue;
+
+        const candidateMediaType: TmdbMediaType | null =
+          attempt.endpoint === 'multi'
+            ? candidate.media_type === 'movie' || candidate.media_type === 'tv'
+              ? candidate.media_type
+              : null
+            : attempt.endpoint;
+        if (!candidateMediaType) continue;
+
+        const candidateVariants = buildResultTitleVariants(candidate);
+        if (candidateVariants.length === 0) continue;
+
+        const titleScore = getBestSimilarityScore(queryVariants, candidateVariants);
+        if (titleScore <= 0) continue;
+
+        const candidateYear = toYear(
+          candidate.release_date || candidate.first_air_date
+        );
+        const finalScore = titleScore + scoreYearMatch(year, candidateYear);
+
+        if (!bestCandidate || finalScore > bestCandidate.score) {
+          bestCandidate = {
+            id: candidateId,
+            mediaType: candidateMediaType,
+            score: finalScore,
+          };
+        }
       }
 
-      return { id: resolvedId, mediaType: attempt.endpoint };
+      if (bestCandidate && bestCandidate.score >= minSimilarity) {
+        return {
+          id: bestCandidate.id,
+          mediaType: bestCandidate.mediaType,
+        };
+      }
     } catch {
       continue;
     }
@@ -511,6 +724,22 @@ export async function GET(request: Request) {
         { error: 'tmdb detail request failed' },
         { status: 502 }
       );
+    }
+
+    if (!hasValidId) {
+      const queryVariants = buildQueryTitleVariants(title);
+      const detailVariants = buildResultTitleVariants({
+        title: rawDetail.title,
+        name: rawDetail.name,
+      });
+      const similarity = getBestSimilarityScore(queryVariants, detailVariants);
+      const minSimilarity = getMinimumSimilarityThreshold(title);
+      if (similarity < minSimilarity) {
+        return NextResponse.json(
+          { error: 'tmdb detail not found' },
+          { status: 404 }
+        );
+      }
     }
 
     const payload = mapRawDetailToResponse(rawDetail, {
