@@ -343,7 +343,7 @@ export default function DanmakuPanel({
 
   return (
     <div className='flex h-full flex-col overflow-hidden'>
-      <div className='mb-3 flex flex-shrink-0 gap-2'>
+      <div className='mb-3 flex w-full min-w-0 flex-shrink-0 items-center gap-2'>
         <input
           type='text'
           value={searchKeyword}
@@ -354,13 +354,13 @@ export default function DanmakuPanel({
             }
           }}
           placeholder='输入剧名搜索弹幕...'
-          className='flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+          className='w-0 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
           autoComplete='off'
         />
         <button
           onClick={() => handleSearch(searchKeyword)}
           disabled={isSearching}
-          className='rounded-lg bg-blue-600 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-700 disabled:opacity-50'
+          className='h-10 shrink-0 rounded-lg bg-blue-600 px-2.5 py-2 text-sm text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:px-3'
           title='搜索弹幕'
         >
           {isSearching ? '...' : <MagnifyingGlassIcon className='h-4 w-4' />}
