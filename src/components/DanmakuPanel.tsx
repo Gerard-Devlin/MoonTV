@@ -360,10 +360,20 @@ export default function DanmakuPanel({
         <button
           onClick={() => handleSearch(searchKeyword)}
           disabled={isSearching}
-          className='h-10 shrink-0 rounded-lg bg-blue-600 px-2.5 py-2 text-sm text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:px-3'
+          className='inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 px-2.5 py-2 text-sm text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:px-3'
           title='搜索弹幕'
         >
-          {isSearching ? '...' : <MagnifyingGlassIcon className='h-4 w-4' />}
+          {isSearching ? (
+            <>
+              <span className='sr-only'>搜索中</span>
+              <span
+                className='inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white'
+                aria-hidden='true'
+              />
+            </>
+          ) : (
+            <MagnifyingGlassIcon className='h-4 w-4' />
+          )}
         </button>
       </div>
 
