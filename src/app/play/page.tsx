@@ -1723,6 +1723,45 @@ function PlayPageClient() {
     []
   );
 
+  const loadEpisodesForDanmakuAnime = useCallback(
+    async (
+      anime: DanmakuAnime
+    ): Promise<{ episodes: DanmakuEpisode[]; animeTitle: string; errorMessage: string }> => {
+      const idCandidates = Array.from(
+        new Set(
+          [anime.animeId, anime.bangumiId]
+            .map((value) => (value === undefined || value === null ? '' : String(value).trim()))
+            .filter(Boolean)
+        )
+      );
+
+      let lastErrorMessage = '';
+      for (const idText of idCandidates) {
+        const numericId = Number(idText);
+        const requestId = Number.isNaN(numericId) ? idText : numericId;
+        const response = await getDanmakuEpisodes(requestId);
+        if (response.success && response.bangumi.episodes.length > 0) {
+          return {
+            episodes: response.bangumi.episodes,
+            animeTitle: response.bangumi.animeTitle || anime.animeTitle,
+            errorMessage: '',
+          };
+        }
+
+        if (response.errorMessage) {
+          lastErrorMessage = response.errorMessage;
+        }
+      }
+
+      return {
+        episodes: [],
+        animeTitle: anime.animeTitle,
+        errorMessage: lastErrorMessage || '该弹幕源没有剧集信息',
+      };
+    },
+    []
+  );
+
   const normalizeDanmakuData = useCallback((input: Array<any>) => {
     const rawCount = input.length;
     const filtered = input.filter(
@@ -1853,14 +1892,15 @@ function PlayPageClient() {
       }
 
       try {
-        const episodesResponse = await getDanmakuEpisodes(anime.animeId);
-        if (!episodesResponse.success || episodesResponse.bangumi.episodes.length === 0) {
+        const loaded = await loadEpisodesForDanmakuAnime(anime);
+        if (loaded.episodes.length === 0) {
+          console.error('Select danmaku source has no episodes:', loaded.errorMessage);
           return;
         }
 
         const episode = matchDanmakuEpisode(
           currentEpisodeIndexRef.current,
-          episodesResponse.bangumi.episodes
+          loaded.episodes
         );
         if (!episode) return;
 
@@ -1868,7 +1908,7 @@ function PlayPageClient() {
           {
             animeId: anime.animeId,
             episodeId: episode.episodeId,
-            animeTitle: anime.animeTitle,
+            animeTitle: loaded.animeTitle,
             episodeTitle: episode.episodeTitle,
             searchKeyword,
           },
@@ -1878,7 +1918,7 @@ function PlayPageClient() {
         console.error('Select danmaku source failed:', error);
       }
     },
-    [handleDanmakuSelect, matchDanmakuEpisode]
+    [handleDanmakuSelect, loadEpisodesForDanmakuAnime, matchDanmakuEpisode]
   );
 
   const autoLoadDanmakuForCurrentEpisode = useCallback(async () => {

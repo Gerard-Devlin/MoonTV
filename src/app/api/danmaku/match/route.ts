@@ -9,7 +9,7 @@ import {
   resolveDanmakuApiBase,
 } from '../_utils';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {

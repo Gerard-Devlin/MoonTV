@@ -55,6 +55,10 @@ export default function DanmakuPanel({
       return `${message}。请先确认弹幕服务可用，并检查 DANMAKU_API_BASE 配置。`;
     }
 
+    if (lower.includes('anime not found')) {
+      return '该弹幕源暂无剧集信息，请尝试其他搜索结果或手动上传 XML。';
+    }
+
     return message;
   }, []);
 
@@ -83,6 +87,46 @@ export default function DanmakuPanel({
     []
   );
 
+  const loadEpisodesForAnime = useCallback(
+    async (
+      anime: DanmakuAnime
+    ): Promise<{ episodes: DanmakuEpisode[]; animeTitle: string; errorMessage: string }> => {
+      const idCandidates = Array.from(
+        new Set(
+          [anime.animeId, anime.bangumiId]
+            .map((value) => (value === undefined || value === null ? '' : String(value).trim()))
+            .filter(Boolean)
+        )
+      );
+
+      let lastErrorMessage = '';
+      for (const idText of idCandidates) {
+        const numericId = Number(idText);
+        const requestId = Number.isNaN(numericId) ? idText : numericId;
+
+        const response = await getEpisodes(requestId);
+        if (response.success && response.bangumi.episodes.length > 0) {
+          return {
+            episodes: response.bangumi.episodes,
+            animeTitle: response.bangumi.animeTitle || anime.animeTitle,
+            errorMessage: '',
+          };
+        }
+
+        if (response.errorMessage) {
+          lastErrorMessage = response.errorMessage;
+        }
+      }
+
+      return {
+        episodes: [],
+        animeTitle: anime.animeTitle,
+        errorMessage: lastErrorMessage || '该弹幕源没有剧集信息',
+      };
+    },
+    []
+  );
+
   const fallbackMatchBySearch = useCallback(
     async (title: string, upstreamMessage?: string): Promise<boolean> => {
       const searchResponse = await searchAnime(title);
@@ -93,34 +137,41 @@ export default function DanmakuPanel({
         return false;
       }
 
-      const bestAnime = searchResponse.animes[0];
-      const episodesResponse = await getEpisodes(bestAnime.animeId);
-      if (!episodesResponse.success || episodesResponse.bangumi.episodes.length === 0) {
-        setError(
-          formatSmartMatchError(
-            episodesResponse.errorMessage || '匹配到弹幕源，但没有找到剧集信息'
-          )
+      let lastErrorMessage = upstreamMessage || '';
+      const candidates = searchResponse.animes.slice(0, 10);
+
+      for (const anime of candidates) {
+        const loaded = await loadEpisodesForAnime(anime);
+        if (loaded.episodes.length === 0) {
+          if (loaded.errorMessage) {
+            lastErrorMessage = loaded.errorMessage;
+          }
+          continue;
+        }
+
+        const index = Math.min(
+          Math.max(currentEpisodeIndex, 0),
+          loaded.episodes.length - 1
         );
-        return false;
+        const episode = loaded.episodes[index];
+
+        onDanmakuSelect({
+          animeId: anime.animeId,
+          episodeId: episode.episodeId,
+          animeTitle: loaded.animeTitle,
+          episodeTitle: episode.episodeTitle,
+          searchKeyword: title,
+        });
+        setError(null);
+        return true;
       }
 
-      const index = Math.min(
-        Math.max(currentEpisodeIndex, 0),
-        episodesResponse.bangumi.episodes.length - 1
+      setError(
+        formatSmartMatchError(lastErrorMessage || '匹配到弹幕源，但都无法加载剧集')
       );
-      const episode = episodesResponse.bangumi.episodes[index];
-
-      onDanmakuSelect({
-        animeId: bestAnime.animeId,
-        episodeId: episode.episodeId,
-        animeTitle: bestAnime.animeTitle,
-        episodeTitle: episode.episodeTitle,
-        searchKeyword: title,
-      });
-      setError(null);
-      return true;
+      return false;
     },
-    [currentEpisodeIndex, formatSmartMatchError, onDanmakuSelect]
+    [currentEpisodeIndex, formatSmartMatchError, loadEpisodesForAnime, onDanmakuSelect]
   );
 
   const handleSearch = useCallback(async (keyword: string) => {
@@ -213,14 +264,14 @@ export default function DanmakuPanel({
     setError(null);
 
     try {
-      const response = await getEpisodes(anime.animeId);
-      if (!response.success || response.bangumi.episodes.length === 0) {
+      const loaded = await loadEpisodesForAnime(anime);
+      if (loaded.episodes.length === 0) {
         setEpisodes([]);
-        setError(response.errorMessage || '该弹幕源没有剧集信息');
+        setError(formatSmartMatchError(loaded.errorMessage));
         return;
       }
 
-      setEpisodes(response.bangumi.episodes);
+      setEpisodes(loaded.episodes);
     } catch (e) {
       console.error('Load danmaku episodes failed:', e);
       setEpisodes([]);
@@ -228,7 +279,7 @@ export default function DanmakuPanel({
     } finally {
       setIsLoadingEpisodes(false);
     }
-  }, []);
+  }, [formatSmartMatchError, loadEpisodesForAnime]);
 
   const handleEpisodeSelect = useCallback(
     (episode: DanmakuEpisode) => {

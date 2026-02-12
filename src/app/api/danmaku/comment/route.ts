@@ -9,7 +9,7 @@ import {
   resolveDanmakuApiBase,
 } from '../_utils';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 interface DanmakuXMLComment {
   p: string;

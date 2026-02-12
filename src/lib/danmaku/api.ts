@@ -112,7 +112,7 @@ export async function matchAnime(fileName: string): Promise<DanmakuMatchResponse
   }
 }
 
-export async function getEpisodes(animeId: number): Promise<DanmakuEpisodesResponse> {
+export async function getEpisodes(animeId: number | string): Promise<DanmakuEpisodesResponse> {
   try {
     const response = await fetch(`/api/danmaku/episodes?animeId=${animeId}`);
     if (!response.ok) {

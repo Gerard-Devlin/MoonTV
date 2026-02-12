@@ -7,6 +7,7 @@
 
 export interface DanmakuAnime {
   animeId: number;
+  bangumiId?: string | number;
   animeTitle: string;
   type: string;
   typeDescription: string;
