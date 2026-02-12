@@ -76,6 +76,7 @@ interface AnalysisDataPoint {
   label: string;
   range: string;
   count: number;
+  posters: string[];
 }
 
 interface GenreRadarDataPoint {
@@ -620,12 +621,20 @@ function MyPageClient() {
   const analysisChartData = useMemo<AnalysisDataPoint[]>(() => {
     const config = ANALYSIS_VIEW_CONFIG[analysisView];
     const counts = new Map<number, number>();
+    const postersByBucket = new Map<number, string[]>();
     for (const record of playRecords) {
       const bucketStart = getBucketStartTimestamp(
         record.save_time,
         analysisView
       );
       counts.set(bucketStart, (counts.get(bucketStart) || 0) + 1);
+
+      const poster = (record.cover || '').trim();
+      if (!poster) continue;
+      const existingPosters = postersByBucket.get(bucketStart) || [];
+      if (existingPosters.includes(poster)) continue;
+      if (existingPosters.length >= GENRE_TOOLTIP_POSTER_CACHE_LIMIT) continue;
+      postersByBucket.set(bucketStart, [...existingPosters, poster]);
     }
 
     const currentBucketStart = getBucketStartTimestamp(
@@ -647,6 +656,7 @@ function MyPageClient() {
         label: formatBucketLabel(bucketStartTimestamp, analysisView),
         range: formatBucketRange(bucketStartTimestamp, analysisView),
         count: counts.get(bucketStartTimestamp) || 0,
+        posters: postersByBucket.get(bucketStartTimestamp) || [],
       });
     }
     return result;
@@ -1233,7 +1243,7 @@ function MyPageClient() {
               </h2>
 
               <div className='grid gap-4 lg:grid-cols-2'>
-                <div className='rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                <div className='relative z-30 overflow-visible rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
                   <div className='mb-3 flex items-start justify-between gap-3'>
                     <div>
                       <p className='text-sm font-semibold text-gray-100'>
@@ -1275,6 +1285,8 @@ function MyPageClient() {
                           />
                           <Tooltip
                             cursor={false}
+                            allowEscapeViewBox={{ x: true, y: true }}
+                            wrapperStyle={{ zIndex: 9999, pointerEvents: 'none' }}
                             content={({ active, payload }) => {
                               if (!active || !payload?.length) return null;
                               const genre =
@@ -1300,7 +1312,7 @@ function MyPageClient() {
                                   : Number(value || 0);
 
                               return (
-                                <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                                <div className='relative z-[9999] rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
                                   <p className='mb-1 text-[11px] text-white/70'>
                                     类型偏好
                                   </p>
@@ -1373,7 +1385,7 @@ function MyPageClient() {
                   </div>
                 </div>
 
-                <div className='rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+                <div className='relative z-20 overflow-visible rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
                   <div className='mb-3'>
                     <p className='text-sm font-semibold text-gray-100'>
                       内容形态分布
@@ -1382,13 +1394,14 @@ function MyPageClient() {
                       按历史记录区分电影与连续剧
                     </p>
                   </div>
-                  <div className='relative h-72 w-full sm:h-80'>
+                  <div className='relative h-72 w-full overflow-visible sm:h-80'>
                     {loadingPlayRecords ? (
                       <div className='flex h-full items-center justify-center text-sm text-gray-400'>
                         正在统计内容形态...
                       </div>
                     ) : watchFormatStats.total > 0 ? (
-                      <ResponsiveContainer width='100%' height='100%'>
+                      <div className='relative z-20 h-full w-full overflow-visible'>
+                        <ResponsiveContainer width='100%' height='100%'>
                         <RadialBarChart
                           data={watchFormatChartData}
                           startAngle={180}
@@ -1411,6 +1424,8 @@ function MyPageClient() {
                           </PolarRadiusAxis>
                           <Tooltip
                             cursor={false}
+                            allowEscapeViewBox={{ x: true, y: true }}
+                            wrapperStyle={{ zIndex: 12000, pointerEvents: 'none' }}
                             content={({ active, payload }) => {
                               if (!active || !payload?.length) return null;
                               const current = payload.find((entry) => {
@@ -1425,7 +1440,7 @@ function MyPageClient() {
                               const percent = (value / total) * 100;
 
                               return (
-                                <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                                <div className='relative z-[12000] rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
                                   <p className='mb-1 text-[11px] text-white/70'>
                                     内容形态
                                   </p>
@@ -1463,13 +1478,14 @@ function MyPageClient() {
                           />
                         </RadialBarChart>
                       </ResponsiveContainer>
+                      </div>
                     ) : (
                       <div className='flex h-full items-center justify-center text-sm text-gray-400'>
                         暂无可用统计数据
                       </div>
                     )}
                     {watchFormatStats.total > 0 ? (
-                      <div className='pointer-events-none absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2 text-center'>
+                      <div className='pointer-events-none absolute left-1/2 top-[62%] z-0 -translate-x-1/2 -translate-y-1/2 text-center'>
                         <p className='text-2xl font-bold text-white'>
                           {watchFormatStats.total.toLocaleString()}
                         </p>
@@ -1502,7 +1518,7 @@ function MyPageClient() {
                 </div>
               </div>
 
-              <div className='rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
+              <div className='relative z-0 rounded-2xl border border-zinc-800 bg-[#171717] p-3 shadow-sm dark:border-zinc-800 sm:p-5'>
                 <div className='mb-3 flex items-start justify-between gap-3'>
                   <div>
                     <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
@@ -1555,15 +1571,22 @@ function MyPageClient() {
                         cursor={{ fill: 'rgba(96,165,250,0.08)' }}
                         content={({ active, payload }) => {
                           if (!active || !payload?.length) return null;
+                          const row =
+                            payload[0]?.payload as AnalysisDataPoint | undefined;
                           const range =
-                            typeof payload[0]?.payload?.range === 'string'
-                              ? payload[0].payload.range
-                              : '';
+                            row && typeof row.range === 'string' ? row.range : '';
                           const value = payload[0]?.value;
                           const numericValue =
                             typeof value === 'number'
                               ? value
                               : Number(value || 0);
+                          const posters = row?.posters || [];
+                          const displayPosters = posters.slice(
+                            0,
+                            GENRE_TOOLTIP_POSTER_LIMIT
+                          );
+                          const hasMorePosters =
+                            posters.length > GENRE_TOOLTIP_POSTER_LIMIT;
 
                           return (
                             <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
@@ -1580,6 +1603,36 @@ function MyPageClient() {
                                   次
                                 </span>
                               </div>
+                              {displayPosters.length > 0 ? (
+                                <div className='mt-2 flex items-center gap-1.5'>
+                                  {displayPosters.map((poster, index) => {
+                                    const normalizedPoster =
+                                      normalizePosterUrl(poster);
+                                    return (
+                                      <img
+                                        key={`analysis-poster-${range}-${index}`}
+                                        src={processImageUrl(normalizedPoster)}
+                                        data-original-src={normalizedPoster}
+                                        alt={`时间段海报 ${index + 1}`}
+                                        className='h-24 w-16 rounded object-cover ring-1 ring-white/10'
+                                        referrerPolicy='no-referrer'
+                                        loading='lazy'
+                                        decoding='async'
+                                        onError={handleGenreTooltipPosterError}
+                                      />
+                                    );
+                                  })}
+                                  {hasMorePosters ? (
+                                    <div className='flex h-24 w-16 items-center justify-center rounded bg-white/5 text-xl leading-none font-bold text-white/80 ring-1 ring-white/10'>
+                                      ...
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <p className='mt-2 text-[11px] text-white/55'>
+                                  暂无最近海报
+                                </p>
+                              )}
                             </div>
                           );
                         }}
