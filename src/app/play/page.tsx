@@ -281,7 +281,8 @@ function PlayPageClient() {
 
   const danmakuPluginRef = useRef<any>(null);
   const danmakuSettingsRef = useRef<DanmakuSettings>(danmakuSettings);
-  const danmakuFilterConfigRef = useRef<DanmakuFilterConfig>(danmakuFilterConfig);
+  const danmakuFilterConfigRef =
+    useRef<DanmakuFilterConfig>(danmakuFilterConfig);
   const danmakuDisplayStateRef = useRef<boolean>(
     (() => {
       const saved = loadDanmakuDisplayState();
@@ -320,7 +321,10 @@ function PlayPageClient() {
     (value || '')
       .toLowerCase()
       .replace(/\s+/g, '')
-      .replace(/[·•:：\-_.()[\]【】「」『』"'"'`~!@#$%^&*+={}\\/|<>?,;，。！？、]/g, '');
+      .replace(
+        /[·•:：\-_.()[\]【】「」『』"'"'`~!@#$%^&*+={}\\/|<>?,;，。！？、]/g,
+        ''
+      );
 
   const toChineseNumeral = (value: number): string => {
     if (!Number.isInteger(value) || value <= 0 || value >= 100) {
@@ -439,7 +443,8 @@ function PlayPageClient() {
       addSeasonHints(n);
     });
 
-    const seasonMatches = text.match(/(?:season|series|s)\s*0*(\d{1,2})/gi) || [];
+    const seasonMatches =
+      text.match(/(?:season|series|s)\s*0*(\d{1,2})/gi) || [];
     seasonMatches.forEach((raw) => {
       const m = raw.match(/(\d{1,2})/);
       if (!m) return;
@@ -447,7 +452,8 @@ function PlayPageClient() {
       addSeasonHints(n);
     });
 
-    const chineseMatches = text.match(/第\s*([一二三四五六七八九十两]{1,3})\s*季/g) || [];
+    const chineseMatches =
+      text.match(/第\s*([一二三四五六七八九十两]{1,3})\s*季/g) || [];
     chineseMatches.forEach((raw) => {
       const m = raw.match(/([一二三四五六七八九十两]{1,3})/);
       if (!m) return;
@@ -505,7 +511,9 @@ function PlayPageClient() {
     return candidates;
   };
 
-  const inferTmdbMediaType = (sourceDetail: SearchResult | null): 'movie' | 'tv' => {
+  const inferTmdbMediaType = (
+    sourceDetail: SearchResult | null
+  ): 'movie' | 'tv' => {
     const normalizedType = (searchType || '').trim().toLowerCase();
     if (normalizedType === 'tv') return 'tv';
     if (normalizedType === 'movie') return 'movie';
@@ -562,14 +570,21 @@ function PlayPageClient() {
   };
 
   const resolveTmdbDetailForCurrent = useCallback(
-    async (sourceDetail: SearchResult | null): Promise<TmdbPlayDetail | null> => {
+    async (
+      sourceDetail: SearchResult | null
+    ): Promise<TmdbPlayDetail | null> => {
       const mediaType = inferTmdbMediaType(sourceDetail);
-      const resolvedYear = normalizeYear(sourceDetail?.year || videoYearRef.current);
+      const resolvedYear = normalizeYear(
+        sourceDetail?.year || videoYearRef.current
+      );
       const normalizedTitle = normalizeQueryText(
         sourceDetail?.title || videoTitleRef.current || searchTitle || ''
       );
 
-      if (!normalizedTitle && !(sourceDetail?.source === 'tmdb' && sourceDetail.id)) {
+      if (
+        !normalizedTitle &&
+        !(sourceDetail?.source === 'tmdb' && sourceDetail.id)
+      ) {
         return null;
       }
 
@@ -587,7 +602,10 @@ function PlayPageClient() {
 
       const fallbackPoster = sourceDetail?.poster || videoCover || '';
 
-      if (sourceDetail?.source === 'tmdb' && /^\d+$/.test(sourceDetail.id || '')) {
+      if (
+        sourceDetail?.source === 'tmdb' &&
+        /^\d+$/.test(sourceDetail.id || '')
+      ) {
         const byIdParams = new URLSearchParams({
           id: sourceDetail.id,
           mediaType,
@@ -601,10 +619,10 @@ function PlayPageClient() {
         }
       }
 
-      const titleCandidates = buildTmdbTitleCandidates(sourceDetail, mediaType).slice(
-        0,
-        14
-      );
+      const titleCandidates = buildTmdbTitleCandidates(
+        sourceDetail,
+        mediaType
+      ).slice(0, 14);
       const yearCandidates = resolvedYear ? [resolvedYear, ''] : [''];
 
       for (const titleCandidate of titleCandidates) {
@@ -1164,13 +1182,13 @@ function PlayPageClient() {
       setLoading(true);
       setLoadingStage(currentSource && currentId ? 'fetching' : 'searching');
       setLoadingMessage(
-        currentSource && currentId
-          ? '正在获取视频详情...'
-          : '正在搜索播放源...'
+        currentSource && currentId ? '正在获取视频详情...' : '正在搜索播放源...'
       );
 
       const initialQuery = (searchTitle || videoTitle).trim();
-      const expectedTitleForMatch = (videoTitleRef.current || initialQuery).trim();
+      const expectedTitleForMatch = (
+        videoTitleRef.current || initialQuery
+      ).trim();
       const seasonHintText = (searchTitle || videoTitleRef.current).trim();
 
       setLoadingMessage('正在搜索播放源...');
@@ -1711,7 +1729,10 @@ function PlayPageClient() {
   };
 
   const matchDanmakuEpisode = useCallback(
-    (episodeIndex: number, episodes: DanmakuEpisode[]): DanmakuEpisode | null => {
+    (
+      episodeIndex: number,
+      episodes: DanmakuEpisode[]
+    ): DanmakuEpisode | null => {
       if (!episodes.length) return null;
       const index = Math.min(Math.max(episodeIndex, 0), episodes.length - 1);
       return episodes[index];
@@ -1722,11 +1743,17 @@ function PlayPageClient() {
   const loadEpisodesForDanmakuAnime = useCallback(
     async (
       anime: DanmakuAnime
-    ): Promise<{ episodes: DanmakuEpisode[]; animeTitle: string; errorMessage: string }> => {
+    ): Promise<{
+      episodes: DanmakuEpisode[];
+      animeTitle: string;
+      errorMessage: string;
+    }> => {
       const idCandidates = Array.from(
         new Set(
           [anime.animeId, anime.bangumiId]
-            .map((value) => (value === undefined || value === null ? '' : String(value).trim()))
+            .map((value) =>
+              value === undefined || value === null ? '' : String(value).trim()
+            )
             .filter(Boolean)
         )
       );
@@ -1786,34 +1813,31 @@ function PlayPageClient() {
     };
   }, []);
 
-  const applyDanmakuToPlayer = useCallback(
-    (danmakuData: Array<any>) => {
-      if (!danmakuPluginRef.current) return;
+  const applyDanmakuToPlayer = useCallback((danmakuData: Array<any>) => {
+    if (!danmakuPluginRef.current) return;
 
-      danmakuPluginRef.current.reset();
-      danmakuPluginRef.current.config({
-        danmuku: danmakuData,
-        speed: danmakuSettingsRef.current.speed,
-        opacity: danmakuSettingsRef.current.opacity,
-        fontSize: danmakuSettingsRef.current.fontSize,
-        margin: [
-          danmakuSettingsRef.current.marginTop,
-          danmakuSettingsRef.current.marginBottom,
-        ],
-      });
-      danmakuPluginRef.current.load();
+    danmakuPluginRef.current.reset();
+    danmakuPluginRef.current.config({
+      danmuku: danmakuData,
+      speed: danmakuSettingsRef.current.speed,
+      opacity: danmakuSettingsRef.current.opacity,
+      fontSize: danmakuSettingsRef.current.fontSize,
+      margin: [
+        danmakuSettingsRef.current.marginTop,
+        danmakuSettingsRef.current.marginBottom,
+      ],
+    });
+    danmakuPluginRef.current.load();
 
-      const savedDisplayState = loadDanmakuDisplayState();
-      const shouldShow = savedDisplayState === null ? true : savedDisplayState;
-      danmakuDisplayStateRef.current = shouldShow;
-      if (shouldShow) {
-        danmakuPluginRef.current.show();
-      } else {
-        danmakuPluginRef.current.hide();
-      }
-    },
-    []
-  );
+    const savedDisplayState = loadDanmakuDisplayState();
+    const shouldShow = savedDisplayState === null ? true : savedDisplayState;
+    danmakuDisplayStateRef.current = shouldShow;
+    if (shouldShow) {
+      danmakuPluginRef.current.show();
+    } else {
+      danmakuPluginRef.current.hide();
+    }
+  }, []);
 
   const handleDanmakuSelect = useCallback(
     async (selection: DanmakuSelection, isManual = false) => {
@@ -1840,12 +1864,17 @@ function PlayPageClient() {
       setDanmakuLoading(true);
 
       try {
-        const comments = await getDanmakuById(selection.episodeId, title, episodeIndex, {
-          animeId: selection.animeId,
-          animeTitle: selection.animeTitle,
-          episodeTitle: selection.episodeTitle,
-          searchKeyword: selection.searchKeyword,
-        });
+        const comments = await getDanmakuById(
+          selection.episodeId,
+          title,
+          episodeIndex,
+          {
+            animeId: selection.animeId,
+            animeTitle: selection.animeTitle,
+            episodeTitle: selection.episodeTitle,
+            searchKeyword: selection.searchKeyword,
+          }
+        );
 
         const formatted = convertDanmakuFormat(comments);
         const { processed, originalCount } = normalizeDanmakuData(formatted);
@@ -1887,7 +1916,10 @@ function PlayPageClient() {
       try {
         const loaded = await loadEpisodesForDanmakuAnime(anime);
         if (loaded.episodes.length === 0) {
-          console.error('Select danmaku source has no episodes:', loaded.errorMessage);
+          console.error(
+            'Select danmaku source has no episodes:',
+            loaded.errorMessage
+          );
           return;
         }
 
@@ -1921,7 +1953,8 @@ function PlayPageClient() {
     if (!title) return;
 
     if (typeof window !== 'undefined') {
-      const disableAutoLoad = localStorage.getItem('disableAutoLoadDanmaku') === 'true';
+      const disableAutoLoad =
+        localStorage.getItem('disableAutoLoadDanmaku') === 'true';
       if (disableAutoLoad) return;
     }
 
@@ -1951,7 +1984,10 @@ function PlayPageClient() {
     if (rememberedAnimeId) {
       try {
         const episodesResponse = await getDanmakuEpisodes(rememberedAnimeId);
-        if (episodesResponse.success && episodesResponse.bangumi.episodes.length > 0) {
+        if (
+          episodesResponse.success &&
+          episodesResponse.bangumi.episodes.length > 0
+        ) {
           const episode = matchDanmakuEpisode(
             episodeIndex,
             episodesResponse.bangumi.episodes
@@ -1975,7 +2011,8 @@ function PlayPageClient() {
       }
     }
 
-    const searchKeyword = getDanmakuSearchKeyword(title) || searchTitle || title;
+    const searchKeyword =
+      getDanmakuSearchKeyword(title) || searchTitle || title;
     const searchResponse = await searchDanmakuAnime(searchKeyword);
     if (!searchResponse.success || searchResponse.animes.length === 0) {
       return;
@@ -1995,7 +2032,12 @@ function PlayPageClient() {
       return;
     }
 
-    await handleDanmakuSourceSelect(searchResponse.animes[0], 0, searchKeyword, false);
+    await handleDanmakuSourceSelect(
+      searchResponse.animes[0],
+      0,
+      searchKeyword,
+      false
+    );
   }, [
     currentDanmakuSelection?.animeId,
     currentDanmakuSelection?.animeTitle,
@@ -2036,7 +2078,8 @@ function PlayPageClient() {
             ? {
                 ...prev,
                 danmakuCount: processed.length,
-                danmakuOriginalCount: originalCount > 0 ? originalCount : undefined,
+                danmakuOriginalCount:
+                  originalCount > 0 ? originalCount : undefined,
               }
             : prev
         );
@@ -2046,11 +2089,7 @@ function PlayPageClient() {
         setDanmakuLoading(false);
       }
     },
-    [
-      applyDanmakuToPlayer,
-      currentDanmakuSelection,
-      normalizeDanmakuData,
-    ]
+    [applyDanmakuToPlayer, currentDanmakuSelection, normalizeDanmakuData]
   );
 
   useEffect(() => {
@@ -2237,7 +2276,10 @@ function PlayPageClient() {
             emitter: false,
             visible: danmakuDisplayStateRef.current,
             filter: (danmu: any) =>
-              !isDanmakuBlocked(danmu.text || '', danmakuFilterConfigRef.current),
+              !isDanmakuBlocked(
+                danmu.text || '',
+                danmakuFilterConfigRef.current
+              ),
           }),
         ],
         settings: [
@@ -2360,7 +2402,8 @@ function PlayPageClient() {
       });
 
       if (artPlayerRef.current?.plugins?.artplayerPluginDanmuku) {
-        danmakuPluginRef.current = artPlayerRef.current.plugins.artplayerPluginDanmuku;
+        danmakuPluginRef.current =
+          artPlayerRef.current.plugins.artplayerPluginDanmuku;
 
         artPlayerRef.current.on('artplayerPluginDanmuku:config', () => {
           if (!danmakuPluginRef.current?.option) return;
@@ -2371,7 +2414,8 @@ function PlayPageClient() {
             opacity: option.opacity ?? danmakuSettingsRef.current.opacity,
             fontSize: option.fontSize ?? danmakuSettingsRef.current.fontSize,
             speed: option.speed ?? danmakuSettingsRef.current.speed,
-            marginTop: option.margin?.[0] ?? danmakuSettingsRef.current.marginTop,
+            marginTop:
+              option.margin?.[0] ?? danmakuSettingsRef.current.marginTop,
             marginBottom:
               option.margin?.[1] ?? danmakuSettingsRef.current.marginBottom,
           };
@@ -2594,7 +2638,6 @@ function PlayPageClient() {
               </p>
             </div>
           </div>
-
         </div>
       </PageLayout>
     );
@@ -2653,10 +2696,12 @@ function PlayPageClient() {
     );
   }
 
-  const displayTitle = tmdbDetail?.title || videoTitle || detail?.title || '影片标题';
+  const displayTitle =
+    tmdbDetail?.title || videoTitle || detail?.title || '影片标题';
   const displayYear = tmdbDetail?.year || detail?.year || videoYear;
   const displayOverview = tmdbDetail?.overview || detail?.desc || '';
-  const displayPoster = tmdbDetail?.poster || tmdbDetail?.backdrop || videoCover;
+  const displayPoster =
+    tmdbDetail?.poster || tmdbDetail?.backdrop || videoCover;
   const displayType =
     tmdbDetail?.mediaType === 'tv'
       ? '剧集'
@@ -2676,7 +2721,7 @@ function PlayPageClient() {
               src={processImageUrl(playBackground)}
               alt=''
               aria-hidden='true'
-              className='h-full w-full object-cover object-center brightness-[0.38]'
+              className='h-full w-full scale-[1.02] object-cover object-center brightness-[0.38] blur-[3px]'
             />
             <div className='absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent' />
             <div className='absolute inset-0 bg-gradient-to-r from-black/50 to-transparent' />
@@ -2684,308 +2729,313 @@ function PlayPageClient() {
         ) : null}
 
         <div className='relative z-[1] flex flex-col gap-3 px-5 pb-4 pt-[calc(env(safe-area-inset-top)+4.5rem)] md:pt-4 lg:px-[3rem] 2xl:px-20'>
-        {/* 第一行：影片标题 */}
-        <div className='py-1'>
-          <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
-            {displayTitle}
-            {totalEpisodes > 1 && (
-              <span className='text-gray-500 dark:text-gray-400'>
-                {` > 第 ${currentEpisodeIndex + 1} 集`}
-              </span>
-            )}
-          </h1>
-        </div>
-        {/* 第二行：播放器和选集 */}
-        <div className='space-y-2'>
-          {/* 折叠控制 - 仅在 lg 及以上屏幕显示 */}
-          <div className='hidden lg:flex justify-end'>
-            <button
-              onClick={() =>
-                setIsEpisodeSelectorCollapsed(!isEpisodeSelectorCollapsed)
-              }
-              className='group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white dark:bg-gray-800/80 dark:hover:bg-gray-800 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-200'
-              title={
-                isEpisodeSelectorCollapsed ? '显示选集面板' : '隐藏选集面板'
-              }
-            >
-              <svg
-                className={`w-3.5 h-3.5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
-                  isEpisodeSelectorCollapsed ? 'rotate-180' : 'rotate-0'
-                }`}
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth='2'
-                  d='M9 5l7 7-7 7'
-                />
-              </svg>
-              <span className='text-xs font-medium text-gray-600 dark:text-gray-300'>
-                {isEpisodeSelectorCollapsed ? '显示' : '隐藏'}
-              </span>
-
-              {/* 精致的状态指示点 */}
-              <div
-                className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all duration-200 ${
-                  isEpisodeSelectorCollapsed
-                    ? 'bg-orange-400 animate-pulse'
-                    : 'bg-blue-400'
-                }`}
-              ></div>
-            </button>
+          {/* 第一行：影片标题 */}
+          <div className='py-1'>
+            <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
+              {displayTitle}
+              {totalEpisodes > 1 && (
+                <span className='text-gray-500 dark:text-gray-400'>
+                  {` > 第 ${currentEpisodeIndex + 1} 集`}
+                </span>
+              )}
+            </h1>
           </div>
+          {/* 第二行：播放器和选集 */}
+          <div className='space-y-2'>
+            {/* 折叠控制 - 仅在 lg 及以上屏幕显示 */}
+            <div className='hidden lg:flex justify-end'>
+              <button
+                onClick={() =>
+                  setIsEpisodeSelectorCollapsed(!isEpisodeSelectorCollapsed)
+                }
+                className='group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white dark:bg-gray-800/80 dark:hover:bg-gray-800 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-200'
+                title={
+                  isEpisodeSelectorCollapsed ? '显示选集面板' : '隐藏选集面板'
+                }
+              >
+                <svg
+                  className={`w-3.5 h-3.5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
+                    isEpisodeSelectorCollapsed ? 'rotate-180' : 'rotate-0'
+                  }`}
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth='2'
+                    d='M9 5l7 7-7 7'
+                  />
+                </svg>
+                <span className='text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  {isEpisodeSelectorCollapsed ? '显示' : '隐藏'}
+                </span>
 
-          <div
-            className={`grid gap-4 lg:h-[500px] xl:h-[650px] 2xl:h-[750px] transition-all duration-300 ease-in-out ${
-              isEpisodeSelectorCollapsed
-                ? 'grid-cols-1'
-                : 'grid-cols-1 md:grid-cols-4'
-            }`}
-          >
-            {/* 播放器 */}
+                {/* 精致的状态指示点 */}
+                <div
+                  className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all duration-200 ${
+                    isEpisodeSelectorCollapsed
+                      ? 'bg-orange-400 animate-pulse'
+                      : 'bg-blue-400'
+                  }`}
+                ></div>
+              </button>
+            </div>
+
             <div
-              className={`h-full transition-all duration-300 ease-in-out rounded-xl border border-white/0 dark:border-white/30 ${
-                isEpisodeSelectorCollapsed ? 'col-span-1' : 'md:col-span-3'
+              className={`grid gap-4 lg:h-[500px] xl:h-[650px] 2xl:h-[750px] transition-all duration-300 ease-in-out ${
+                isEpisodeSelectorCollapsed
+                  ? 'grid-cols-1'
+                  : 'grid-cols-1 md:grid-cols-4'
               }`}
             >
-              <div className='relative w-full h-[300px] lg:h-full'>
-                <div
-                  ref={artRef}
-                  className='bg-black w-full h-full rounded-xl overflow-hidden shadow-lg'
-                ></div>
+              {/* 播放器 */}
+              <div
+                className={`h-full transition-all duration-300 ease-in-out rounded-xl border border-white/0 dark:border-white/30 ${
+                  isEpisodeSelectorCollapsed ? 'col-span-1' : 'md:col-span-3'
+                }`}
+              >
+                <div className='relative w-full h-[300px] lg:h-full'>
+                  <div
+                    ref={artRef}
+                    className='bg-black w-full h-full rounded-xl overflow-hidden shadow-lg'
+                  ></div>
 
-                {/* 换源加载蒙层 */}
-                {isVideoLoading && (
-                  <div className='absolute inset-0 bg-black/85 backdrop-blur-sm rounded-xl flex items-center justify-center z-[500] transition-all duration-300'>
-                    <div className='text-center max-w-md mx-auto px-6'>
-                      <svg
-                        className='play-heart'
-                        viewBox='-5 -5 278 56'
-                        version='1.1'
-                        xmlns='http://www.w3.org/2000/svg'
-                        aria-hidden='true'
-                      >
-                        <filter id='blur'>
-                          <feGaussianBlur stdDeviation='1.6'></feGaussianBlur>
-                        </filter>
-                        <g transform='translate(29.1 -127.42)'>
-                          <path
-                            pathLength='1'
-                            d='M-28.73 167.2c26.43 9.21 68.46-9.46 85.45-12.03 18.45-2.78 32.82 4.86 28.75 9.83-3.82 4.66-25.77-21.18-14.81-31.5 9.54-8.98 17.64 10.64 16.42 17.06-1.51-6.2 2.95-26.6 14.74-22.11 11.7 4.46-4.33 49.03-15.44 44.08-6.97-3.1 15.44-16.26 26.1-16 23.03.56 55.6 27.51 126.63 3.36'
-                            id='line'
-                          ></path>
-                        </g>
-                        <g transform='translate(29.1 -127.42)'>
-                          <path
-                            pathLength='1'
-                            d='M-28.73 167.2c26.43 9.21 68.46-9.46 85.45-12.03 18.45-2.78 32.82 4.86 28.75 9.83-3.82 4.66-25.77-21.18-14.81-31.5 9.54-8.98 17.64 10.64 16.42 17.06-1.51-6.2 2.95-26.6 14.74-22.11 11.7 4.46-4.33 49.03-15.44 44.08-6.97-3.1 15.44-16.26 26.1-16 23.03.56 55.6 27.51 126.63 3.36'
-                            id='point'
-                            filter='url(#blur)'
-                          ></path>
-                        </g>
-                      </svg>
+                  {/* 换源加载蒙层 */}
+                  {isVideoLoading && (
+                    <div className='absolute inset-0 bg-black/85 backdrop-blur-sm rounded-xl flex items-center justify-center z-[500] transition-all duration-300'>
+                      <div className='text-center max-w-md mx-auto px-6'>
+                        <svg
+                          className='play-heart'
+                          viewBox='-5 -5 278 56'
+                          version='1.1'
+                          xmlns='http://www.w3.org/2000/svg'
+                          aria-hidden='true'
+                        >
+                          <filter id='blur'>
+                            <feGaussianBlur stdDeviation='1.6'></feGaussianBlur>
+                          </filter>
+                          <g transform='translate(29.1 -127.42)'>
+                            <path
+                              pathLength='1'
+                              d='M-28.73 167.2c26.43 9.21 68.46-9.46 85.45-12.03 18.45-2.78 32.82 4.86 28.75 9.83-3.82 4.66-25.77-21.18-14.81-31.5 9.54-8.98 17.64 10.64 16.42 17.06-1.51-6.2 2.95-26.6 14.74-22.11 11.7 4.46-4.33 49.03-15.44 44.08-6.97-3.1 15.44-16.26 26.1-16 23.03.56 55.6 27.51 126.63 3.36'
+                              id='line'
+                            ></path>
+                          </g>
+                          <g transform='translate(29.1 -127.42)'>
+                            <path
+                              pathLength='1'
+                              d='M-28.73 167.2c26.43 9.21 68.46-9.46 85.45-12.03 18.45-2.78 32.82 4.86 28.75 9.83-3.82 4.66-25.77-21.18-14.81-31.5 9.54-8.98 17.64 10.64 16.42 17.06-1.51-6.2 2.95-26.6 14.74-22.11 11.7 4.46-4.33 49.03-15.44 44.08-6.97-3.1 15.44-16.26 26.1-16 23.03.56 55.6 27.51 126.63 3.36'
+                              id='point'
+                              filter='url(#blur)'
+                            ></path>
+                          </g>
+                        </svg>
 
-                      {/* 换源消息 */}
-                      <div className='space-y-2'>
-                        <p className='text-xl font-semibold text-white animate-pulse'>
-                          <span className='inline-flex items-center gap-2'>
-                            <VideoLoadingIcon className='h-5 w-5 animate-spin' />
-                            {videoLoadingStage === 'sourceChanging'
-                              ? '切换播放源...'
-                              : '视频加载中...'}
-                          </span>
-                        </p>
+                        {/* 换源消息 */}
+                        <div className='space-y-2'>
+                          <p className='text-xl font-semibold text-white animate-pulse'>
+                            <span className='inline-flex items-center gap-2'>
+                              <VideoLoadingIcon className='h-5 w-5 animate-spin' />
+                              {videoLoadingStage === 'sourceChanging'
+                                ? '切换播放源...'
+                                : '视频加载中...'}
+                            </span>
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {danmakuLoading && !isVideoLoading && (
-                  <div className='pointer-events-none absolute inset-0 z-[450] flex items-center justify-center rounded-xl bg-black/45 backdrop-blur-sm'>
-                    <div className='rounded-lg border border-white/20 bg-black/60 px-4 py-2 text-center text-sm text-white'>
-                      {danmakuCount > 0
-                        ? danmakuOriginalCount > 0
-                          ? `已加载 ${danmakuCount} 条弹幕（原始 ${danmakuOriginalCount} 条）`
-                          : `已加载 ${danmakuCount} 条弹幕`
-                        : '加载弹幕中...'}
+                  {danmakuLoading && !isVideoLoading && (
+                    <div className='pointer-events-none absolute inset-0 z-[450] flex items-center justify-center rounded-xl bg-black/45 backdrop-blur-sm'>
+                      <div className='rounded-lg border border-white/20 bg-black/60 px-4 py-2 text-center text-sm text-white'>
+                        {danmakuCount > 0
+                          ? danmakuOriginalCount > 0
+                            ? `已加载 ${danmakuCount} 条弹幕（原始 ${danmakuOriginalCount} 条）`
+                            : `已加载 ${danmakuCount} 条弹幕`
+                          : '加载弹幕中...'}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 选集和换源 - 在移动端始终显示，在 lg 及以上可折叠 */}
-            <div
-              className={`h-[300px] lg:h-full md:overflow-hidden transition-all duration-300 ease-in-out ${
-                isEpisodeSelectorCollapsed
-                  ? 'md:col-span-1 lg:hidden lg:opacity-0 lg:scale-95'
-                  : 'md:col-span-1 lg:opacity-100 lg:scale-100'
-              }`}
-            >
-              <EpisodeSelector
-                totalEpisodes={totalEpisodes}
-                value={currentEpisodeIndex + 1}
-                onChange={handleEpisodeChange}
-                onSourceChange={handleSourceChange}
-                currentSource={currentSource}
-                currentId={currentId}
-                videoTitle={searchTitle || videoTitle}
-                availableSources={availableSources}
-                sourceSearchLoading={sourceSearchLoading}
-                sourceSearchError={sourceSearchError}
-                precomputedVideoInfo={precomputedVideoInfo}
-                onDanmakuSelect={(selection) => handleDanmakuSelect(selection, true)}
-                currentDanmakuSelection={currentDanmakuSelection}
-                onUploadDanmaku={handleUploadDanmaku}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 详情展示 */}
-        <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
-          {/* 文字区 */}
-          <div className='md:col-span-3'>
-            <div className='p-6 flex flex-col min-h-0'>
-              {/* 标题 */}
-              <div
-                className={`flex w-full items-center ${
-                  tmdbDetail?.logo ? 'mb-1' : 'mb-3'
-                }`}
-              >
-                <div className='min-w-0 flex-1'>
-                  {tmdbDetail?.logo ? (
-                    <>
-                      <img
-                        src={processImageUrl(tmdbDetail.logo)}
-                        alt={`${displayTitle} logo`}
-                        className='mx-0 h-16 w-auto max-w-full object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)] md:h-20'
-                      />
-                      <h1 className='sr-only'>{displayTitle}</h1>
-                    </>
-                  ) : (
-                    <h1 className='text-3xl font-bold tracking-wide text-center md:text-left'>
-                      {displayTitle}
-                    </h1>
                   )}
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleFavorite();
-                  }}
-                  className='ml-3 flex-shrink-0 hover:opacity-80 transition-opacity'
-                >
-                  <FavoriteIcon filled={favorited} />
-                </button>
               </div>
 
-              {/* 关键信息行 */}
-              <div className='mb-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-800/90 dark:text-white/90 flex-shrink-0'>
-                {tmdbDetail?.score && (
-                  <span className='inline-flex items-center gap-1 text-yellow-500 dark:text-yellow-400 font-semibold'>
-                    <Star size={14} fill='currentColor' />
-                    {tmdbDetail.score}
-                    {tmdbDetail.voteCount > 0 ? ` (${tmdbDetail.voteCount})` : ''}
-                  </span>
-                )}
-                {displayYear && (
-                  <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
-                    <CalendarDays size={14} />
-                    {displayYear}
-                  </span>
-                )}
-                {tmdbDetail?.runtime ? (
-                  <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
-                    <Clock3 size={14} />
-                    {tmdbDetail.runtime}min
-                  </span>
-                ) : null}
-                {tmdbDetail?.mediaType === 'tv' &&
-                tmdbDetail.seasons &&
-                tmdbDetail.episodes ? (
-                  <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
-                    <Users size={14} />
-                    {tmdbDetail.seasons} Seasons / {tmdbDetail.episodes} Episodes
-                  </span>
-                ) : null}
-                {displayType && (
-                  <span className='rounded border border-gray-500/40 bg-white/55 px-1.5 py-0.5 text-[11px] font-medium text-gray-800/95 backdrop-blur-md dark:border-white/35 dark:bg-slate-900/45 dark:text-white/95'>
-                    {displayType}
-                  </span>
-                )}
-                {tmdbDetail?.contentRating && (
-                  <span className='rounded border border-gray-500/40 bg-white/55 px-1.5 py-0.5 text-[11px] font-medium text-gray-800/95 backdrop-blur-md dark:border-white/35 dark:bg-slate-900/45 dark:text-white/95'>
-                    {tmdbDetail.contentRating}
-                  </span>
-                )}
+              {/* 选集和换源 - 在移动端始终显示，在 lg 及以上可折叠 */}
+              <div
+                className={`h-[300px] lg:h-full md:overflow-hidden transition-all duration-300 ease-in-out ${
+                  isEpisodeSelectorCollapsed
+                    ? 'md:col-span-1 lg:hidden lg:opacity-0 lg:scale-95'
+                    : 'md:col-span-1 lg:opacity-100 lg:scale-100'
+                }`}
+              >
+                <EpisodeSelector
+                  totalEpisodes={totalEpisodes}
+                  value={currentEpisodeIndex + 1}
+                  onChange={handleEpisodeChange}
+                  onSourceChange={handleSourceChange}
+                  currentSource={currentSource}
+                  currentId={currentId}
+                  videoTitle={searchTitle || videoTitle}
+                  availableSources={availableSources}
+                  sourceSearchLoading={sourceSearchLoading}
+                  sourceSearchError={sourceSearchError}
+                  precomputedVideoInfo={precomputedVideoInfo}
+                  onDanmakuSelect={(selection) =>
+                    handleDanmakuSelect(selection, true)
+                  }
+                  currentDanmakuSelection={currentDanmakuSelection}
+                  onUploadDanmaku={handleUploadDanmaku}
+                />
               </div>
-              {displayGenres.length > 0 ? (
-                <div className='mt-1 flex flex-wrap gap-2'>
-                  {displayGenres.map((genre) => (
-                    <span
-                      key={`tmdb-genre-${genre}`}
-                      className='rounded-full border border-gray-500/40 bg-white/55 px-2.5 py-1 text-xs text-gray-800/90 backdrop-blur-md dark:border-white/25 dark:bg-slate-900/45 dark:text-white/90'
-                    >
-                      {genre}
-                    </span>
-                  ))}
+            </div>
+          </div>
+
+          {/* 详情展示 */}
+          <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
+            {/* 文字区 */}
+            <div className='md:col-span-3'>
+              <div className='p-6 flex flex-col min-h-0'>
+                {/* 标题 */}
+                <div
+                  className={`flex w-full items-center ${
+                    tmdbDetail?.logo ? 'mb-1' : 'mb-3'
+                  }`}
+                >
+                  <div className='min-w-0 flex-1'>
+                    {tmdbDetail?.logo ? (
+                      <>
+                        <img
+                          src={processImageUrl(tmdbDetail.logo)}
+                          alt={`${displayTitle} logo`}
+                          className='mx-0 h-16 w-auto max-w-full object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)] md:h-20'
+                        />
+                        <h1 className='sr-only'>{displayTitle}</h1>
+                      </>
+                    ) : (
+                      <h1 className='text-3xl font-bold tracking-wide text-center md:text-left'>
+                        {displayTitle}
+                      </h1>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite();
+                    }}
+                    className='ml-3 flex-shrink-0 hover:opacity-80 transition-opacity'
+                  >
+                    <FavoriteIcon filled={favorited} />
+                  </button>
                 </div>
-              ) : null}
-              {/* 剧情简介 */}
-              {displayOverview && (
+
+                {/* 关键信息行 */}
+                <div className='mb-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-800/90 dark:text-white/90 flex-shrink-0'>
+                  {tmdbDetail?.score && (
+                    <span className='inline-flex items-center gap-1 text-yellow-500 dark:text-yellow-400 font-semibold'>
+                      <Star size={14} fill='currentColor' />
+                      {tmdbDetail.score}
+                      {tmdbDetail.voteCount > 0
+                        ? ` (${tmdbDetail.voteCount})`
+                        : ''}
+                    </span>
+                  )}
+                  {displayYear && (
+                    <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
+                      <CalendarDays size={14} />
+                      {displayYear}
+                    </span>
+                  )}
+                  {tmdbDetail?.runtime ? (
+                    <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
+                      <Clock3 size={14} />
+                      {tmdbDetail.runtime}min
+                    </span>
+                  ) : null}
+                  {tmdbDetail?.mediaType === 'tv' &&
+                  tmdbDetail.seasons &&
+                  tmdbDetail.episodes ? (
+                    <span className='inline-flex items-center gap-1 text-gray-700/80 dark:text-white/80'>
+                      <Users size={14} />
+                      {tmdbDetail.seasons} Seasons / {tmdbDetail.episodes}{' '}
+                      Episodes
+                    </span>
+                  ) : null}
+                  {displayType && (
+                    <span className='rounded border border-gray-500/40 bg-white/55 px-1.5 py-0.5 text-[11px] font-medium text-gray-800/95 backdrop-blur-md dark:border-white/35 dark:bg-slate-900/45 dark:text-white/95'>
+                      {displayType}
+                    </span>
+                  )}
+                  {tmdbDetail?.contentRating && (
+                    <span className='rounded border border-gray-500/40 bg-white/55 px-1.5 py-0.5 text-[11px] font-medium text-gray-800/95 backdrop-blur-md dark:border-white/35 dark:bg-slate-900/45 dark:text-white/95'>
+                      {tmdbDetail.contentRating}
+                    </span>
+                  )}
+                </div>
+                {displayGenres.length > 0 ? (
+                  <div className='mt-1 flex flex-wrap gap-2'>
+                    {displayGenres.map((genre) => (
+                      <span
+                        key={`tmdb-genre-${genre}`}
+                        className='rounded-full border border-gray-500/40 bg-white/55 px-2.5 py-1 text-xs text-gray-800/90 backdrop-blur-md dark:border-white/25 dark:bg-slate-900/45 dark:text-white/90'
+                      >
+                        {genre}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {/* 剧情简介 */}
+                {displayOverview && (
                   <p
                     className='mt-3 text-sm leading-6 text-gray-700/90 dark:text-white/85 sm:text-base'
                     style={{ whiteSpace: 'pre-line' }}
                   >
-                  {displayOverview}
-                </p>
-              )}
-              {displayCast.length > 0 ? (
-                <div className='mt-4 space-y-2'>
-                  <p className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
-                    主演
+                    {displayOverview}
                   </p>
-                  <div className='flex flex-wrap gap-2'>
-                    {displayCast.slice(0, 12).map((item) => (
-                      <button
-                        type='button'
-                        key={`play-cast-${item.id}-${item.name}`}
-                        onClick={() => router.push(`/person/${item.id}`)}
-                        className='rounded-full border border-gray-500/40 bg-white/55 px-2.5 py-1 text-xs text-gray-800/90 backdrop-blur-md transition-colors hover:bg-white/75 dark:border-white/25 dark:bg-slate-900/45 dark:text-white/90 dark:hover:bg-slate-900/65'
-                      >
-                        {item.name}
-                        {item.character ? ` · ${item.character}` : ''}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* 封面展示 */}
-          <div className='hidden md:block md:col-span-1 md:order-first'>
-            <div className='pl-0 py-4 pr-6'>
-              <div className='bg-gray-300 dark:bg-gray-700 aspect-[2/3] flex items-center justify-center rounded-xl overflow-hidden'>
-                {displayPoster ? (
-                  <img
-                    src={processImageUrl(displayPoster)}
-                    alt={displayTitle}
-                    className='w-full h-full object-cover'
-                  />
-                ) : (
-                  <span className='text-gray-600 dark:text-gray-400'>
-                    封面图片
-                  </span>
                 )}
+                {displayCast.length > 0 ? (
+                  <div className='mt-4 space-y-2'>
+                    <p className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
+                      主演
+                    </p>
+                    <div className='flex flex-wrap gap-2'>
+                      {displayCast.slice(0, 12).map((item) => (
+                        <button
+                          type='button'
+                          key={`play-cast-${item.id}-${item.name}`}
+                          onClick={() => router.push(`/person/${item.id}`)}
+                          className='rounded-full border border-gray-500/40 bg-white/55 px-2.5 py-1 text-xs text-gray-800/90 backdrop-blur-md transition-colors hover:bg-white/75 dark:border-white/25 dark:bg-slate-900/45 dark:text-white/90 dark:hover:bg-slate-900/65'
+                        >
+                          {item.name}
+                          {item.character ? ` · ${item.character}` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* 封面展示 */}
+            <div className='hidden md:block md:col-span-1 md:order-first'>
+              <div className='pl-0 py-4 pr-6'>
+                <div className='bg-gray-300 dark:bg-gray-700 aspect-[2/3] flex items-center justify-center rounded-xl overflow-hidden'>
+                  {displayPoster ? (
+                    <img
+                      src={processImageUrl(displayPoster)}
+                      alt={displayTitle}
+                      className='w-full h-full object-cover'
+                    />
+                  ) : (
+                    <span className='text-gray-600 dark:text-gray-400'>
+                      封面图片
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
 
@@ -2999,7 +3049,10 @@ function PlayPageClient() {
             try {
               danmakuPluginRef.current.load();
             } catch (error) {
-              console.error('Reload danmaku after filter update failed:', error);
+              console.error(
+                'Reload danmaku after filter update failed:',
+                error
+              );
             }
           }
         }}
