@@ -308,7 +308,57 @@ function PlayPageClient() {
     const candidates: string[] = [];
     const dedupe = new Set<string>();
 
+    const normalizeQueryText = (value: string): string =>
+      (value || '').replace(/\s+/g, ' ').trim();
+
+    const expandQueryVariants = (value: string): string[] => {
+      const base = normalizeQueryText(value);
+      if (!base) return [];
+
+      const variants = new Set<string>();
+      const pushVariant = (input: string) => {
+        const normalized = normalizeQueryText(input);
+        if (!normalized) return;
+        variants.add(normalized);
+      };
+
+      pushVariant(base);
+
+      // 冒号和空格差异（K-Pop 猎魔女团 / K-Pop：猎魔女团 / K-Pop: 猎魔女团）
+      pushVariant(base.replace(/\s*[：:]\s*/g, ':'));
+      pushVariant(base.replace(/\s*[：:]\s*/g, '：'));
+      pushVariant(base.replace(/\s*[：:]\s*/g, ' '));
+      pushVariant(base.replace(/\s*[：:]\s*/g, ''));
+
+      // 连字符和点号差异（K-Pop / K Pop / KPop）
+      pushVariant(base.replace(/\s*[-‐‑‒–—]\s*/g, ' '));
+      pushVariant(base.replace(/\s*[-‐‑‒–—]\s*/g, ''));
+      pushVariant(base.replace(/[·•]/g, ' '));
+      pushVariant(base.replace(/[·•]/g, ''));
+
+      // 组合兜底：同时移除常见分隔符
+      pushVariant(
+        base
+          .replace(/\s*[：:]\s*/g, '')
+          .replace(/\s*[-‐‑‒–—]\s*/g, '')
+          .replace(/[·•]/g, '')
+      );
+
+      return Array.from(variants);
+    };
+
     const push = (value: string) => {
+      const variants = expandQueryVariants(value);
+      if (variants.length === 0) return;
+      variants.forEach((normalized) => {
+        const key = normalized.toLowerCase();
+        if (dedupe.has(key)) return;
+        dedupe.add(key);
+        candidates.push(normalized);
+      });
+    };
+
+    const pushRaw = (value: string) => {
       const normalized = value.trim();
       if (!normalized) return;
       const key = normalized.toLowerCase();
@@ -331,7 +381,7 @@ function PlayPageClient() {
       push(`${baseNoSeason} ${hint}`);
       push(`${baseNoSeason}${hint}`);
       if (compactBaseNoSeason && compactHint) {
-        push(`${compactBaseNoSeason}${compactHint}`);
+        pushRaw(`${compactBaseNoSeason}${compactHint}`);
       }
     });
 
