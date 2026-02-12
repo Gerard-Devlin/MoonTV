@@ -478,6 +478,9 @@ function MyPageClient() {
   const [favoriteSearchKeyword, setFavoriteSearchKeyword] = useState('');
   const [analysisView, setAnalysisView] = useState<AnalysisView>('week');
   const [genreScope, setGenreScope] = useState<GenreScope>('all');
+  const [watchFormatHoverKey, setWatchFormatHoverKey] = useState<
+    'movie' | 'tv' | null
+  >(null);
   const [loadingGenreRadar, setLoadingGenreRadar] = useState(false);
   const [genreAnalysisByScope, setGenreAnalysisByScope] = useState<
     Record<GenreScope, GenreAnalysisState>
@@ -1424,23 +1427,28 @@ function MyPageClient() {
                           </PolarRadiusAxis>
                           <Tooltip
                             cursor={false}
-                            allowEscapeViewBox={{ x: true, y: true }}
-                            wrapperStyle={{ zIndex: 12000, pointerEvents: 'none' }}
                             content={({ active, payload }) => {
                               if (!active || !payload?.length) return null;
-                              const current = payload.find((entry) => {
+                              const fallbackKey = payload.find((entry) => {
                                 const key = String(entry?.dataKey || '');
                                 return key === 'tv' || key === 'movie';
-                              });
-                              if (!current) return null;
+                              })?.dataKey;
 
-                              const key = String(current.dataKey) as 'movie' | 'tv';
-                              const value = Number(current.value || 0);
+                              const key =
+                                watchFormatHoverKey ||
+                                (String(fallbackKey) as 'movie' | 'tv');
+                              if (key !== 'movie' && key !== 'tv') return null;
+
+                              const value = Number(
+                                payload.find(
+                                  (entry) => String(entry?.dataKey || '') === key
+                                )?.value || 0
+                              );
                               const total = watchFormatStats.total > 0 ? watchFormatStats.total : 1;
                               const percent = (value / total) * 100;
 
                               return (
-                                <div className='relative z-[12000] rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
+                                <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
                                   <p className='mb-1 text-[11px] text-white/70'>
                                     内容形态
                                   </p>
@@ -1467,6 +1475,8 @@ function MyPageClient() {
                             stackId='watch-format'
                             cornerRadius={5}
                             fill={WATCH_FORMAT_COLORS.tv}
+                            onMouseEnter={() => setWatchFormatHoverKey('tv')}
+                            onMouseLeave={() => setWatchFormatHoverKey(null)}
                             className='stroke-transparent stroke-2'
                           />
                           <RadialBar
@@ -1474,6 +1484,8 @@ function MyPageClient() {
                             stackId='watch-format'
                             cornerRadius={5}
                             fill={WATCH_FORMAT_COLORS.movie}
+                            onMouseEnter={() => setWatchFormatHoverKey('movie')}
+                            onMouseLeave={() => setWatchFormatHoverKey(null)}
                             className='stroke-transparent stroke-2'
                           />
                         </RadialBarChart>
