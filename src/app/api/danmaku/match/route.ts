@@ -3,10 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
-  fetchWithTimeout,
   getErrorMessage,
-  readUpstreamErrorBody,
-  resolveDanmakuApiBase,
+  requestDanmakuApi,
 } from '../_utils';
 
 export const runtime = 'edge';
@@ -29,11 +27,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const base = await resolveDanmakuApiBase();
-    const apiUrl = `${base}/api/v2/match`;
-
-    const response = await fetchWithTimeout(
-      apiUrl,
+    const response = await requestDanmakuApi(
+      '/api/v2/match',
       {
         method: 'POST',
         headers: {
@@ -41,17 +36,9 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({ fileName }),
       },
-      30000
+      30000,
+      'Danmaku match'
     );
-
-    if (!response.ok) {
-      const upstreamMessage = await readUpstreamErrorBody(response);
-      throw new Error(
-        upstreamMessage
-          ? `Danmaku match failed (${response.status}): ${upstreamMessage}`
-          : `Danmaku match failed (${response.status})`
-      );
-    }
 
     return NextResponse.json(await response.json());
   } catch (error) {

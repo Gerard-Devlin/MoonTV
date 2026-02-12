@@ -3,10 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
-  fetchWithTimeout,
   getErrorMessage,
-  readUpstreamErrorBody,
-  resolveDanmakuApiBase,
+  requestDanmakuApi,
 } from '../_utils';
 
 export const runtime = 'edge';
@@ -43,30 +41,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ count: 0, comments: [] }, { status: 400 });
     }
 
-    const base = await resolveDanmakuApiBase();
-    const apiUrl = episodeId
-      ? `${base}/api/v2/comment/${episodeId}?format=xml`
-      : `${base}/api/v2/comment?url=${encodeURIComponent(url || '')}&format=xml`;
-
-    const response = await fetchWithTimeout(
-      apiUrl,
+    const response = await requestDanmakuApi(
+      episodeId
+        ? `/api/v2/comment/${episodeId}?format=xml`
+        : `/api/v2/comment?url=${encodeURIComponent(url || '')}&format=xml`,
       {
         method: 'GET',
         headers: {
           Accept: 'application/xml, text/xml',
         },
       },
-      120000
+      120000,
+      'Danmaku comments'
     );
-
-    if (!response.ok) {
-      const upstreamMessage = await readUpstreamErrorBody(response);
-      throw new Error(
-        upstreamMessage
-          ? `Danmaku comments failed (${response.status}): ${upstreamMessage}`
-          : `Danmaku comments failed (${response.status})`
-      );
-    }
 
     const xmlText = await response.text();
     const comments = parseXmlDanmaku(xmlText);

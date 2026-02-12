@@ -3,10 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
-  fetchWithTimeout,
   getErrorMessage,
-  readUpstreamErrorBody,
-  resolveDanmakuApiBase,
+  requestDanmakuApi,
 } from '../_utils';
 
 export const runtime = 'edge';
@@ -26,28 +24,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const base = await resolveDanmakuApiBase();
-    const apiUrl = `${base}/api/v2/search/anime?keyword=${encodeURIComponent(keyword)}`;
-
-    const response = await fetchWithTimeout(
-      apiUrl,
+    const response = await requestDanmakuApi(
+      `/api/v2/search/anime?keyword=${encodeURIComponent(keyword)}`,
       {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       },
-      30000
+      30000,
+      'Danmaku search'
     );
-
-    if (!response.ok) {
-      const upstreamMessage = await readUpstreamErrorBody(response);
-      throw new Error(
-        upstreamMessage
-          ? `Danmaku search failed (${response.status}): ${upstreamMessage}`
-          : `Danmaku search failed (${response.status})`
-      );
-    }
 
     return NextResponse.json(await response.json());
   } catch (error) {
