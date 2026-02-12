@@ -203,6 +203,10 @@ async function initConfig() {
             DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
             DisableYellowFilter:
               process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
+            DanmakuApiBase:
+              process.env.DANMAKU_API_BASE || 'http://localhost:9321',
+            DanmakuApiToken:
+              process.env.DANMAKU_API_TOKEN || '87654321',
           },
           UserConfig: {
             AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
@@ -250,6 +254,10 @@ async function initConfig() {
         DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
         DisableYellowFilter:
           process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
+        DanmakuApiBase:
+          process.env.DANMAKU_API_BASE || 'http://localhost:9321',
+        DanmakuApiToken:
+          process.env.DANMAKU_API_TOKEN || '87654321',
       },
       UserConfig: {
         AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',
@@ -305,6 +313,14 @@ export async function getConfig(): Promise<AdminConfig> {
       process.env.NEXT_PUBLIC_DOUBAN_PROXY || '';
     adminConfig.SiteConfig.DisableYellowFilter =
       process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
+    if (!adminConfig.SiteConfig.DanmakuApiBase) {
+      adminConfig.SiteConfig.DanmakuApiBase =
+        process.env.DANMAKU_API_BASE || 'http://localhost:9321';
+    }
+    if (!adminConfig.SiteConfig.DanmakuApiToken) {
+      adminConfig.SiteConfig.DanmakuApiToken =
+        process.env.DANMAKU_API_TOKEN || '87654321';
+    }
 
     // 合并文件中的源信息
     fileConfig = runtimeConfig as unknown as ConfigFileStruct;
@@ -437,6 +453,10 @@ export async function resetConfig() {
       DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
       DisableYellowFilter:
         process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
+      DanmakuApiBase:
+        process.env.DANMAKU_API_BASE || 'http://localhost:9321',
+      DanmakuApiToken:
+        process.env.DANMAKU_API_TOKEN || '87654321',
     },
     UserConfig: {
       AllowRegister: process.env.NEXT_PUBLIC_ENABLE_REGISTER === 'true',

@@ -1,0 +1,72 @@
+﻿{
+    "errorCode":  0,
+    "success":  true,
+    "errorMessage":  "",
+    "animes":  [
+                   {
+                       "animeId":  275228,
+                       "bangumiId":  "275228",
+                       "animeTitle":  "æµ·è´¼çç³»å(0001)ãå¨æ¼«ãfrom 360",
+                       "type":  "å¨æ¼«",
+                       "typeDescription":  "å¨æ¼«",
+                       "imageUrl":  "https://puui.qpic.cn/vcover_vt_pic/0/mzc00200edkve1p1643267704733/0",
+                       "startDate":  "2026-01-01T00:00:00Z",
+                       "episodeCount":  1,
+                       "rating":  0,
+                       "isFavorited":  true,
+                       "source":  "360"
+                   },
+                   {
+                       "animeId":  255856,
+                       "bangumiId":  "255856",
+                       "animeTitle":  "æ¬¡å\u0085æ\u0085äºï¼æµ·è´¼ç(2018)ãå¨æ¼«ãfrom å¬é£",
+                       "type":  "å¨æ¼«",
+                       "typeDescription":  "å¨æ¼«",
+                       "imageUrl":  "https://image.caiji.cyou/upload/vod/20241114-9/c2c36e126198833c4ef463c79df4bd62.jpg",
+                       "startDate":  "2018-01-01T00:00:00Z",
+                       "episodeCount":  1,
+                       "rating":  0,
+                       "isFavorited":  true,
+                       "source":  "vod"
+                   },
+                   {
+                       "animeId":  301820,
+                       "bangumiId":  "301820",
+                       "animeTitle":  "æµ·è´¼çç³»å(0)ãå¨æ¼«ãfrom å¬é£",
+                       "type":  "å¨æ¼«",
+                       "typeDescription":  "å¨æ¼«",
+                       "imageUrl":  "http://puui.qpic.cn/vcover_vt_pic/0/mzc00200edkve1p1643267704733/0",
+                       "startDate":  "2026-01-01T00:00:00Z",
+                       "episodeCount":  9,
+                       "rating":  0,
+                       "isFavorited":  true,
+                       "source":  "vod"
+                   },
+                   {
+                       "animeId":  45439,
+                       "bangumiId":  "45439",
+                       "animeTitle":  "æµ·è´¼ç(çäººç æ¥è¯­é\u0085é³) ç¬¬ä¸å­£(2023)ãçµè§å§ãfrom renren",
+                       "type":  "çµè§å§",
+                       "typeDescription":  "çµè§å§",
+                       "imageUrl":  "http://img.duoduoshipin.vip/friday/drama/20230901/o_a75fac7f90d147dab531ed9a87d57798.jpg",
+                       "startDate":  "2023-01-01T00:00:00Z",
+                       "episodeCount":  8,
+                       "rating":  0,
+                       "isFavorited":  true,
+                       "source":  "renren"
+                   },
+                   {
+                       "animeId":  44476,
+                       "bangumiId":  "44476",
+                       "animeTitle":  "æµ·è´¼ç(çäººç) ç¬¬ä¸å­£(2023)ãçµè§å§ãfrom renren",
+                       "type":  "çµè§å§",
+                       "typeDescription":  "çµè§å§",
+                       "imageUrl":  "http://img.duoduoshipin.vip/friday/drama/20230831/o_c975073553384033b752e2060df50c5b.jpg",
+                       "startDate":  "2023-01-01T00:00:00Z",
+                       "episodeCount":  8,
+                       "rating":  0,
+                       "isFavorited":  true,
+                       "source":  "renren"
+                   }
+               ]
+}

@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
+﻿/* eslint-disable @next/next/no-img-element */
 
 import { useRouter } from 'next/navigation';
 import React, {
@@ -9,27 +9,30 @@ import React, {
   useState,
 } from 'react';
 
+import type { DanmakuComment, DanmakuSelection } from '@/lib/danmaku/types';
 import { SearchResult } from '@/lib/types';
 import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 
-// 定义视频信息类型
+import DanmakuPanel from '@/components/DanmakuPanel';
+
+// 瀹氫箟瑙嗛淇℃伅绫诲瀷
 interface VideoInfo {
   quality: string;
   loadSpeed: string;
   pingTime: number;
-  hasError?: boolean; // 添加错误状态标识
+  hasError?: boolean; // 娣诲姞閿欒鐘舵€佹爣璇?
 }
 
 interface EpisodeSelectorProps {
-  /** 总集数 */
+  /** 鎬婚泦鏁?*/
   totalEpisodes: number;
-  /** 每页显示多少集，默认 50 */
+  /** 姣忛〉鏄剧ず澶氬皯闆嗭紝榛樿 50 */
   episodesPerPage?: number;
-  /** 当前选中的集数（1 开始） */
+  /** 褰撳墠閫変腑鐨勯泦鏁帮紙1 寮€濮嬶級 */
   value?: number;
-  /** 用户点击选集后的回调 */
+  /** 鐢ㄦ埛鐐瑰嚮閫夐泦鍚庣殑鍥炶皟 */
   onChange?: (episodeNumber: number) => void;
-  /** 换源相关 */
+  /** 鎹㈡簮鐩稿叧 */
   onSourceChange?: (source: string, id: string, title: string) => void;
   currentSource?: string;
   currentId?: string;
@@ -38,12 +41,15 @@ interface EpisodeSelectorProps {
   availableSources?: SearchResult[];
   sourceSearchLoading?: boolean;
   sourceSearchError?: string | null;
-  /** 预计算的测速结果，避免重复测速 */
+  /** 棰勮绠楃殑娴嬮€熺粨鏋滐紝閬垮厤閲嶅娴嬮€?*/
   precomputedVideoInfo?: Map<string, VideoInfo>;
+  onDanmakuSelect?: (selection: DanmakuSelection) => void;
+  currentDanmakuSelection?: DanmakuSelection | null;
+  onUploadDanmaku?: (comments: DanmakuComment[]) => void;
 }
 
 /**
- * 选集组件，支持分页、自动滚动聚焦当前分页标签，以及换源功能。
+ * 閫夐泦缁勪欢锛屾敮鎸佸垎椤点€佽嚜鍔ㄦ粴鍔ㄨ仛鐒﹀綋鍓嶅垎椤垫爣绛撅紝浠ュ強鎹㈡簮鍔熻兘銆?
  */
 const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   totalEpisodes,
@@ -58,11 +64,14 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   sourceSearchLoading = false,
   sourceSearchError = null,
   precomputedVideoInfo,
+  onDanmakuSelect,
+  currentDanmakuSelection,
+  onUploadDanmaku,
 }) => {
   const router = useRouter();
   const pageCount = Math.ceil(totalEpisodes / episodesPerPage);
 
-  // 存储每个源的视频信息
+  // 瀛樺偍姣忎釜婧愮殑瑙嗛淇℃伅
   const [videoInfoMap, setVideoInfoMap] = useState<Map<string, VideoInfo>>(
     new Map()
   );
@@ -70,11 +79,11 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     new Set()
   );
 
-  // 使用 ref 来避免闭包问题
+  // 浣跨敤 ref 鏉ラ伩鍏嶉棴鍖呴棶棰?
   const attemptedSourcesRef = useRef<Set<string>>(new Set());
   const videoInfoMapRef = useRef<Map<string, VideoInfo>>(new Map());
 
-  // 同步状态到 ref
+  // 鍚屾鐘舵€佸埌 ref
   useEffect(() => {
     attemptedSourcesRef.current = attemptedSources;
   }, [attemptedSources]);
@@ -83,20 +92,20 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     videoInfoMapRef.current = videoInfoMap;
   }, [videoInfoMap]);
 
-  // 主要的 tab 状态：'episodes' 或 'sources'
-  // 当只有一集时默认展示 "换源"，并隐藏 "选集" 标签
-  const [activeTab, setActiveTab] = useState<'episodes' | 'sources'>(
+  // 涓昏鐨?tab 鐘舵€侊細'episodes' 鎴?'sources'
+  // 褰撳彧鏈変竴闆嗘椂榛樿灞曠ず "鎹㈡簮"锛屽苟闅愯棌 "閫夐泦" 鏍囩
+  const [activeTab, setActiveTab] = useState<'danmaku' | 'episodes' | 'sources'>(
     totalEpisodes > 1 ? 'episodes' : 'sources'
   );
 
-  // 当前分页索引（0 开始）
+  // 褰撳墠鍒嗛〉绱㈠紩锛? 寮€濮嬶級
   const initialPage = Math.floor((value - 1) / episodesPerPage);
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
 
-  // 是否倒序显示
+  // 鏄惁鍊掑簭鏄剧ず
   const [descending, setDescending] = useState<boolean>(false);
 
-  // 根据 descending 状态计算实际显示的分页索引
+  // 鏍规嵁 descending 鐘舵€佽绠楀疄闄呮樉绀虹殑鍒嗛〉绱㈠紩
   const displayPage = useMemo(() => {
     if (descending) {
       return pageCount - 1 - currentPage;
@@ -104,30 +113,30 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     return currentPage;
   }, [currentPage, descending, pageCount]);
 
-  // 获取视频信息的函数 - 移除 attemptedSources 依赖避免不必要的重新创建
+  // 鑾峰彇瑙嗛淇℃伅鐨勫嚱鏁?- 绉婚櫎 attemptedSources 渚濊禆閬垮厤涓嶅繀瑕佺殑閲嶆柊鍒涘缓
   const getVideoInfo = useCallback(async (source: SearchResult) => {
     const sourceKey = `${source.source}-${source.id}`;
 
-    // 使用 ref 获取最新的状态，避免闭包问题
+    // 浣跨敤 ref 鑾峰彇鏈€鏂扮殑鐘舵€侊紝閬垮厤闂寘闂
     if (attemptedSourcesRef.current.has(sourceKey)) {
       return;
     }
 
-    // 获取第一集的URL
+    // 鑾峰彇绗竴闆嗙殑URL
     if (!source.episodes || source.episodes.length === 0) {
       return;
     }
     const episodeUrl =
       source.episodes.length > 1 ? source.episodes[1] : source.episodes[0];
 
-    // 标记为已尝试
+    // 鏍囪涓哄凡灏濊瘯
     setAttemptedSources((prev) => new Set(prev).add(sourceKey));
 
     try {
       const info = await getVideoResolutionFromM3u8(episodeUrl);
       setVideoInfoMap((prev) => new Map(prev).set(sourceKey, info));
     } catch (error) {
-      // 失败时保存错误状态
+      // 澶辫触鏃朵繚瀛橀敊璇姸鎬?
       setVideoInfoMap((prev) =>
         new Map(prev).set(sourceKey, {
           quality: '错误',
@@ -139,10 +148,10 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     }
   }, []);
 
-  // 当有预计算结果时，先合并到videoInfoMap中
+  // 褰撴湁棰勮绠楃粨鏋滄椂锛屽厛鍚堝苟鍒皏ideoInfoMap涓?
   useEffect(() => {
     if (precomputedVideoInfo && precomputedVideoInfo.size > 0) {
-      // 原子性地更新两个状态，避免时序问题
+      // 鍘熷瓙鎬у湴鏇存柊涓や釜鐘舵€侊紝閬垮厤鏃跺簭闂
       setVideoInfoMap((prev) => {
         const newMap = new Map(prev);
         precomputedVideoInfo.forEach((value, key) => {
@@ -161,7 +170,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
         return newSet;
       });
 
-      // 同步更新 ref，确保 getVideoInfo 能立即看到更新
+      // 鍚屾鏇存柊 ref锛岀‘淇?getVideoInfo 鑳界珛鍗崇湅鍒版洿鏂?
       precomputedVideoInfo.forEach((info, key) => {
         if (!info.hasError) {
           attemptedSourcesRef.current.add(key);
@@ -170,7 +179,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     }
   }, [precomputedVideoInfo]);
 
-  // 读取本地“优选和测速”开关，默认开启
+  // 璇诲彇鏈湴鈥滀紭閫夊拰娴嬮€熲€濆紑鍏筹紝榛樿寮€鍚?
   const [optimizationEnabled] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('enableOptimization');
@@ -185,17 +194,17 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     return true;
   });
 
-  // 当切换到换源tab并且有源数据时，异步获取视频信息 - 移除 attemptedSources 依赖避免循环触发
+  // 褰撳垏鎹㈠埌鎹㈡簮tab骞朵笖鏈夋簮鏁版嵁鏃讹紝寮傛鑾峰彇瑙嗛淇℃伅 - 绉婚櫎 attemptedSources 渚濊禆閬垮厤寰幆瑙﹀彂
   useEffect(() => {
     const fetchVideoInfosInBatches = async () => {
       if (
-        !optimizationEnabled || // 若关闭测速则直接退出
+        !optimizationEnabled || // 鑻ュ叧闂祴閫熷垯鐩存帴閫€鍑?
         activeTab !== 'sources' ||
         availableSources.length === 0
       )
         return;
 
-      // 筛选出尚未测速的播放源
+      // 绛涢€夊嚭灏氭湭娴嬮€熺殑鎾斁婧?
       const pendingSources = availableSources.filter((source) => {
         const sourceKey = `${source.source}-${source.id}`;
         return !attemptedSourcesRef.current.has(sourceKey);
@@ -212,10 +221,10 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     };
 
     fetchVideoInfosInBatches();
-    // 依赖项保持与之前一致
+    // 渚濊禆椤逛繚鎸佷笌涔嬪墠涓€鑷?
   }, [activeTab, availableSources, getVideoInfo, optimizationEnabled]);
 
-  // 升序分页标签
+  // 鍗囧簭鍒嗛〉鏍囩
   const categoriesAsc = useMemo(() => {
     return Array.from({ length: pageCount }, (_, i) => {
       const start = i * episodesPerPage + 1;
@@ -224,10 +233,10 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     });
   }, [pageCount, episodesPerPage, totalEpisodes]);
 
-  // 根据 descending 状态决定分页标签的排序和内容
+  // 鏍规嵁 descending 鐘舵€佸喅瀹氬垎椤垫爣绛剧殑鎺掑簭鍜屽唴瀹?
   const categories = useMemo(() => {
     if (descending) {
-      // 倒序时，label 也倒序显示
+      // 鍊掑簭鏃讹紝label 涔熷€掑簭鏄剧ず
       return [...categoriesAsc]
         .reverse()
         .map(({ start, end }) => `${end}-${start}`);
@@ -238,25 +247,25 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   const categoryContainerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // 当分页切换时，将激活的分页标签滚动到视口中间
+  // 褰撳垎椤靛垏鎹㈡椂锛屽皢婵€娲荤殑鍒嗛〉鏍囩婊氬姩鍒拌鍙ｄ腑闂?
   useEffect(() => {
     const btn = buttonRefs.current[displayPage];
     const container = categoryContainerRef.current;
     if (btn && container) {
-      // 手动计算滚动位置，只滚动分页标签容器
+      // 鎵嬪姩璁＄畻婊氬姩浣嶇疆锛屽彧婊氬姩鍒嗛〉鏍囩瀹瑰櫒
       const containerRect = container.getBoundingClientRect();
       const btnRect = btn.getBoundingClientRect();
       const scrollLeft = container.scrollLeft;
 
-      // 计算按钮相对于容器的位置
+      // 璁＄畻鎸夐挳鐩稿浜庡鍣ㄧ殑浣嶇疆
       const btnLeft = btnRect.left - containerRect.left + scrollLeft;
       const btnWidth = btnRect.width;
       const containerWidth = containerRect.width;
 
-      // 计算目标滚动位置，使按钮居中
+      // 璁＄畻鐩爣婊氬姩浣嶇疆锛屼娇鎸夐挳灞呬腑
       const targetScrollLeft = btnLeft - (containerWidth - btnWidth) / 2;
 
-      // 平滑滚动到目标位置
+      // 骞虫粦婊氬姩鍒扮洰鏍囦綅缃?
       container.scrollTo({
         left: targetScrollLeft,
         behavior: 'smooth',
@@ -264,7 +273,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     }
   }, [displayPage, pageCount]);
 
-  // 处理换源tab点击，只在点击时才搜索
+  // 澶勭悊鎹㈡簮tab鐐瑰嚮锛屽彧鍦ㄧ偣鍑绘椂鎵嶆悳绱?
   const handleSourceTabClick = () => {
     setActiveTab('sources');
   };
@@ -272,7 +281,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   const handleCategoryClick = useCallback(
     (index: number) => {
       if (descending) {
-        // 在倒序时，需要将显示索引转换为实际索引
+        // 鍦ㄥ€掑簭鏃讹紝闇€瑕佸皢鏄剧ず绱㈠紩杞崲涓哄疄闄呯储寮?
         setCurrentPage(pageCount - 1 - index);
       } else {
         setCurrentPage(index);
@@ -303,7 +312,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
 
   return (
     <div className='md:ml-2 px-4 py-0 h-full rounded-xl bg-white/58 dark:bg-slate-900/45 backdrop-blur-xl flex flex-col border border-white/45 dark:border-white/20 shadow-lg overflow-hidden'>
-      {/* 主要的 Tab 切换 - 无缝融入设计 */}
+      {/* 涓昏鐨?Tab 鍒囨崲 - 鏃犵紳铻嶅叆璁捐 */}
       <div className='flex mb-1 -mx-6 flex-shrink-0'>
         {totalEpisodes > 1 && (
           <div
@@ -331,12 +340,38 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
         >
           换源
         </div>
+        {onDanmakuSelect && (
+          <div
+            onClick={() => setActiveTab('danmaku')}
+            className={`flex-1 py-3 px-6 text-center cursor-pointer transition-all duration-200 font-medium
+              ${
+                activeTab === 'danmaku'
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-700 hover:text-blue-600 bg-black/5 dark:bg-white/5 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-black/3 dark:hover:bg-white/3'
+              }
+            `.trim()}
+          >
+            弹幕
+          </div>
+        )}
       </div>
 
-      {/* 选集 Tab 内容 */}
+      {activeTab === 'danmaku' && onDanmakuSelect && (
+        <div className='mt-2 flex-1 min-h-0 overflow-hidden'>
+          <DanmakuPanel
+            videoTitle={videoTitle || ''}
+            currentEpisodeIndex={value - 1}
+            onDanmakuSelect={onDanmakuSelect}
+            currentSelection={currentDanmakuSelection || null}
+            onUploadDanmaku={onUploadDanmaku}
+          />
+        </div>
+      )}
+
+      {/* 閫夐泦 Tab 鍐呭 */}
       {activeTab === 'episodes' && (
         <>
-          {/* 分类标签 */}
+          {/* 鍒嗙被鏍囩 */}
           <div className='flex items-center gap-4 mb-4 border-b border-gray-300 dark:border-gray-700 -mx-6 px-6 flex-shrink-0'>
             <div className='flex-1 overflow-x-auto' ref={categoryContainerRef}>
               <div className='flex gap-2 min-w-max'>
@@ -366,11 +401,11 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                 })}
               </div>
             </div>
-            {/* 向上/向下按钮 */}
+            {/* 鍚戜笂/鍚戜笅鎸夐挳 */}
             <button
               className='flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-gray-700 hover:text-blue-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-blue-400 dark:hover:bg-white/20 transition-colors transform translate-y-[-4px]'
               onClick={() => {
-                // 切换集数排序（正序/倒序）
+                // 鍒囨崲闆嗘暟鎺掑簭锛堟搴?鍊掑簭锛?
                 setDescending((prev) => !prev);
               }}
             >
@@ -390,7 +425,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
             </button>
           </div>
 
-          {/* 集数网格 */}
+          {/* 闆嗘暟缃戞牸 */}
           <div className='grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] auto-rows-[40px] gap-x-3 gap-y-3 overflow-y-auto h-full pb-4'>
             {(() => {
               const len = currentEnd - currentStart + 1;
@@ -419,7 +454,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
         </>
       )}
 
-      {/* 换源 Tab 内容 */}
+      {/* 鎹㈡簮 Tab 鍐呭 */}
       {activeTab === 'sources' && (
         <div className='flex flex-col h-full mt-4'>
           {sourceSearchLoading && (
@@ -447,7 +482,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
             availableSources.length === 0 && (
               <div className='flex items-center justify-center py-8'>
                 <div className='text-center'>
-                  <div className='text-gray-400 text-2xl mb-2'>📺</div>
+                  <div className='text-gray-400 text-2xl mb-2'>📭</div>
                   <p className='text-sm text-gray-600 dark:text-gray-300'>
                     暂无可用的换源
                   </p>
@@ -488,7 +523,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                           : 'hover:bg-gray-200/50 dark:hover:bg-white/10 hover:scale-[1.02] cursor-pointer'
                       }`.trim()}
                       >
-                        {/* 封面 */}
+                        {/* 灏侀潰 */}
                         <div className='flex-shrink-0 w-12 h-20 bg-gray-300 dark:bg-gray-600 rounded overflow-hidden'>
                           {source.episodes && source.episodes.length > 0 && (
                             <img
@@ -503,15 +538,15 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                           )}
                         </div>
 
-                        {/* 信息区域 */}
+                        {/* 淇℃伅鍖哄煙 */}
                         <div className='flex-1 min-w-0 flex flex-col justify-between h-20'>
-                          {/* 标题和分辨率 - 顶部 */}
+                          {/* 鏍囬鍜屽垎杈ㄧ巼 - 椤堕儴 */}
                           <div className='flex items-start justify-between gap-3 h-6'>
                             <div className='flex-1 min-w-0 relative group/title'>
                               <h3 className='font-medium text-base truncate text-gray-900 dark:text-gray-100 leading-none'>
                                 {source.title}
                               </h3>
-                              {/* 标题级别的 tooltip - 第一个元素不显示 */}
+                              {/* 鏍囬绾у埆鐨?tooltip - 绗竴涓厓绱犱笉鏄剧ず */}
                               {index !== 0 && (
                                 <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 invisible group-hover/title:opacity-100 group-hover/title:visible transition-all duration-200 ease-out delay-100 whitespace-nowrap z-[500] pointer-events-none'>
                                   {source.title}
@@ -531,7 +566,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                                     </div>
                                   );
                                 } else {
-                                  // 根据分辨率设置不同颜色：2K、4K为紫色，1080p、720p为绿色，其他为黄色
+                                  // 鏍规嵁鍒嗚鲸鐜囪缃笉鍚岄鑹诧細2K銆?K涓虹传鑹诧紝1080p銆?20p涓虹豢鑹诧紝鍏朵粬涓洪粍鑹?
                                   const isUltraHigh = ['4K', '2K'].includes(
                                     videoInfo.quality
                                   );
@@ -558,7 +593,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                             })()}
                           </div>
 
-                          {/* 源名称和集数信息 - 垂直居中 */}
+                          {/* 婧愬悕绉板拰闆嗘暟淇℃伅 - 鍨傜洿灞呬腑 */}
                           <div className='flex items-center justify-between'>
                             <span className='text-xs px-2 py-1 border border-gray-500/60 rounded text-gray-700 dark:text-gray-300'>
                               {source.source_name}
@@ -570,7 +605,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                             )}
                           </div>
 
-                          {/* 网络信息 - 底部 */}
+                          {/* 缃戠粶淇℃伅 - 搴曢儴 */}
                           <div className='flex items-end h-6'>
                             {(() => {
                               const sourceKey = `${source.source}-${source.id}`;
@@ -592,7 +627,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                                     <div className='text-red-500/90 dark:text-red-400 font-medium text-xs'>
                                       无测速数据
                                     </div>
-                                  ); // 占位div
+                                  ); // 鍗犱綅div
                                 }
                               }
                             })()}
@@ -624,3 +659,4 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
 };
 
 export default EpisodeSelector;
+

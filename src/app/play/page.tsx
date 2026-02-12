@@ -3,6 +3,7 @@
 'use client';
 
 import Artplayer from 'artplayer';
+import artplayerPluginDanmuku from 'artplayer-plugin-danmuku';
 import Hls from 'hls.js';
 import {
   AlertTriangle,
@@ -22,6 +23,41 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  convertDanmakuFormat,
+  getDanmakuById,
+  getEpisodes as getDanmakuEpisodes,
+  initDanmakuModule,
+  loadDanmakuDisplayState,
+  loadDanmakuSettings,
+  saveDanmakuDisplayState,
+  saveDanmakuSettings,
+  searchAnime as searchDanmakuAnime,
+} from '@/lib/danmaku/api';
+import { saveDanmakuToCache } from '@/lib/danmaku/cache';
+import {
+  isDanmakuBlocked,
+  loadDanmakuFilterConfig,
+  saveDanmakuFilterConfig,
+} from '@/lib/danmaku/filter-config';
+import {
+  getDanmakuAnimeId,
+  getDanmakuSearchKeyword,
+  getDanmakuSourceIndex,
+  getManualDanmakuSelection,
+  saveDanmakuAnimeId,
+  saveDanmakuSearchKeyword,
+  saveDanmakuSourceIndex,
+  saveManualDanmakuSelection,
+} from '@/lib/danmaku/selection-memory';
+import type {
+  DanmakuAnime,
+  DanmakuComment,
+  DanmakuEpisode,
+  DanmakuFilterConfig,
+  DanmakuSelection,
+  DanmakuSettings,
+} from '@/lib/danmaku/types';
+import {
   deleteFavorite,
   deletePlayRecord,
   deleteSkipConfig,
@@ -37,6 +73,7 @@ import {
 import { SearchResult } from '@/lib/types';
 import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 
+import DanmakuFilterSettings from '@/components/DanmakuFilterSettings';
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
 
@@ -228,6 +265,36 @@ function PlayPageClient() {
     'initing' | 'sourceChanging'
   >('initing');
 
+  const [danmakuSettings, setDanmakuSettings] = useState<DanmakuSettings>(
+    loadDanmakuSettings()
+  );
+  const [danmakuFilterConfig, setDanmakuFilterConfig] =
+    useState<DanmakuFilterConfig>(loadDanmakuFilterConfig());
+  const [showDanmakuFilterSettings, setShowDanmakuFilterSettings] =
+    useState(false);
+
+  const [currentDanmakuSelection, setCurrentDanmakuSelection] =
+    useState<DanmakuSelection | null>(null);
+  const [danmakuLoading, setDanmakuLoading] = useState(false);
+  const [danmakuCount, setDanmakuCount] = useState(0);
+  const [danmakuOriginalCount, setDanmakuOriginalCount] = useState(0);
+
+  const [danmakuMatches, setDanmakuMatches] = useState<DanmakuAnime[]>([]);
+  const [showDanmakuSourceSelector, setShowDanmakuSourceSelector] =
+    useState(false);
+
+  const danmakuPluginRef = useRef<any>(null);
+  const danmakuSettingsRef = useRef<DanmakuSettings>(danmakuSettings);
+  const danmakuFilterConfigRef = useRef<DanmakuFilterConfig>(danmakuFilterConfig);
+  const danmakuDisplayStateRef = useRef<boolean>(
+    (() => {
+      const saved = loadDanmakuDisplayState();
+      return saved ?? true;
+    })()
+  );
+  const loadingDanmakuEpisodeIdRef = useRef<number | null>(null);
+  const lastDanmakuAutoLoadKeyRef = useRef<string>('');
+
   // 播放进度保存相关
   const saveIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastSaveTimeRef = useRef<number>(0);
@@ -238,6 +305,21 @@ function PlayPageClient() {
     new Map()
   );
   const tmdbDetailRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    danmakuSettingsRef.current = danmakuSettings;
+    saveDanmakuSettings(danmakuSettings);
+  }, [danmakuSettings]);
+
+  useEffect(() => {
+    danmakuFilterConfigRef.current = danmakuFilterConfig;
+    saveDanmakuFilterConfig(danmakuFilterConfig);
+  }, [danmakuFilterConfig]);
+
+  useEffect(() => {
+    initDanmakuModule();
+  }, []);
+
   const normalizeCompareText = (value: string): string =>
     (value || '')
       .toLowerCase()
@@ -1632,6 +1714,318 @@ function PlayPageClient() {
     }
   };
 
+  const matchDanmakuEpisode = useCallback(
+    (episodeIndex: number, episodes: DanmakuEpisode[]): DanmakuEpisode | null => {
+      if (!episodes.length) return null;
+      const index = Math.min(Math.max(episodeIndex, 0), episodes.length - 1);
+      return episodes[index];
+    },
+    []
+  );
+
+  const normalizeDanmakuData = useCallback((input: Array<any>) => {
+    const rawCount = input.length;
+    const filtered = input.filter(
+      (item) => !isDanmakuBlocked(item.text, danmakuFilterConfigRef.current)
+    );
+
+    let processed = filtered;
+    const maxCount =
+      typeof window !== 'undefined'
+        ? Number.parseInt(localStorage.getItem('danmakuMaxCount') || '0', 10)
+        : 0;
+
+    if (maxCount > 0 && processed.length > maxCount) {
+      const sampled: typeof processed = [];
+      const step = processed.length / maxCount;
+      for (let i = 0; i < maxCount; i += 1) {
+        sampled.push(processed[Math.floor(i * step)]);
+      }
+      processed = sampled;
+    }
+
+    const originalCount = processed.length === rawCount ? 0 : rawCount;
+    return {
+      processed,
+      originalCount,
+    };
+  }, []);
+
+  const applyDanmakuToPlayer = useCallback(
+    (danmakuData: Array<any>) => {
+      if (!danmakuPluginRef.current) return;
+
+      danmakuPluginRef.current.reset();
+      danmakuPluginRef.current.config({
+        danmuku: danmakuData,
+        speed: danmakuSettingsRef.current.speed,
+        opacity: danmakuSettingsRef.current.opacity,
+        fontSize: danmakuSettingsRef.current.fontSize,
+        margin: [
+          danmakuSettingsRef.current.marginTop,
+          danmakuSettingsRef.current.marginBottom,
+        ],
+      });
+      danmakuPluginRef.current.load();
+
+      const savedDisplayState = loadDanmakuDisplayState();
+      const shouldShow = savedDisplayState === null ? true : savedDisplayState;
+      danmakuDisplayStateRef.current = shouldShow;
+      if (shouldShow) {
+        danmakuPluginRef.current.show();
+      } else {
+        danmakuPluginRef.current.hide();
+      }
+    },
+    []
+  );
+
+  const handleDanmakuSelect = useCallback(
+    async (selection: DanmakuSelection, isManual = false) => {
+      if (!danmakuPluginRef.current) {
+        return;
+      }
+
+      const title = (videoTitleRef.current || '').trim();
+      const episodeIndex = currentEpisodeIndexRef.current;
+
+      if (isManual && title && episodeIndex >= 0) {
+        saveManualDanmakuSelection(title, episodeIndex, selection.episodeId);
+        saveDanmakuAnimeId(title, selection.animeId);
+        if (selection.searchKeyword) {
+          saveDanmakuSearchKeyword(title, selection.searchKeyword);
+        }
+      }
+
+      if (loadingDanmakuEpisodeIdRef.current === selection.episodeId) {
+        return;
+      }
+
+      loadingDanmakuEpisodeIdRef.current = selection.episodeId;
+      setDanmakuLoading(true);
+
+      try {
+        const comments = await getDanmakuById(selection.episodeId, title, episodeIndex, {
+          animeId: selection.animeId,
+          animeTitle: selection.animeTitle,
+          episodeTitle: selection.episodeTitle,
+          searchKeyword: selection.searchKeyword,
+        });
+
+        const formatted = convertDanmakuFormat(comments);
+        const { processed, originalCount } = normalizeDanmakuData(formatted);
+
+        applyDanmakuToPlayer(processed);
+
+        setDanmakuCount(processed.length);
+        setDanmakuOriginalCount(originalCount);
+        setCurrentDanmakuSelection({
+          ...selection,
+          danmakuCount: processed.length,
+          danmakuOriginalCount: originalCount > 0 ? originalCount : undefined,
+        });
+      } catch (error) {
+        console.error('Load danmaku failed:', error);
+        setDanmakuCount(0);
+        setDanmakuOriginalCount(0);
+      } finally {
+        setDanmakuLoading(false);
+        loadingDanmakuEpisodeIdRef.current = null;
+      }
+    },
+    [applyDanmakuToPlayer, normalizeDanmakuData]
+  );
+
+  const handleDanmakuSourceSelect = useCallback(
+    async (
+      anime: DanmakuAnime,
+      selectedIndex?: number,
+      searchKeyword?: string,
+      isManualSearch = false
+    ) => {
+      setShowDanmakuSourceSelector(false);
+      setDanmakuMatches([]);
+
+      const title = (videoTitleRef.current || '').trim();
+
+      if (title && typeof selectedIndex === 'number') {
+        saveDanmakuSourceIndex(title, selectedIndex);
+      }
+
+      try {
+        const episodesResponse = await getDanmakuEpisodes(anime.animeId);
+        if (!episodesResponse.success || episodesResponse.bangumi.episodes.length === 0) {
+          return;
+        }
+
+        const episode = matchDanmakuEpisode(
+          currentEpisodeIndexRef.current,
+          episodesResponse.bangumi.episodes
+        );
+        if (!episode) return;
+
+        await handleDanmakuSelect(
+          {
+            animeId: anime.animeId,
+            episodeId: episode.episodeId,
+            animeTitle: anime.animeTitle,
+            episodeTitle: episode.episodeTitle,
+            searchKeyword,
+          },
+          isManualSearch
+        );
+      } catch (error) {
+        console.error('Select danmaku source failed:', error);
+      }
+    },
+    [handleDanmakuSelect, matchDanmakuEpisode]
+  );
+
+  const autoLoadDanmakuForCurrentEpisode = useCallback(async () => {
+    if (!danmakuPluginRef.current) return;
+
+    const title = (videoTitleRef.current || '').trim();
+    if (!title) return;
+
+    if (typeof window !== 'undefined') {
+      const disableAutoLoad = localStorage.getItem('disableAutoLoadDanmaku') === 'true';
+      if (disableAutoLoad) return;
+    }
+
+    const episodeIndex = currentEpisodeIndexRef.current;
+    if (episodeIndex < 0) return;
+
+    const loadKey = `${currentSourceRef.current}|${currentIdRef.current}|${title}|${episodeIndex}`;
+    if (lastDanmakuAutoLoadKeyRef.current === loadKey) return;
+    lastDanmakuAutoLoadKeyRef.current = loadKey;
+
+    const manualEpisodeId = getManualDanmakuSelection(title, episodeIndex);
+    if (manualEpisodeId) {
+      await handleDanmakuSelect(
+        {
+          animeId: currentDanmakuSelection?.animeId || 0,
+          episodeId: manualEpisodeId,
+          animeTitle: currentDanmakuSelection?.animeTitle || '手动选择',
+          episodeTitle: `第 ${episodeIndex + 1} 集`,
+          searchKeyword: currentDanmakuSelection?.searchKeyword,
+        },
+        false
+      );
+      return;
+    }
+
+    const rememberedAnimeId = getDanmakuAnimeId(title);
+    if (rememberedAnimeId) {
+      try {
+        const episodesResponse = await getDanmakuEpisodes(rememberedAnimeId);
+        if (episodesResponse.success && episodesResponse.bangumi.episodes.length > 0) {
+          const episode = matchDanmakuEpisode(
+            episodeIndex,
+            episodesResponse.bangumi.episodes
+          );
+          if (episode) {
+            await handleDanmakuSelect(
+              {
+                animeId: rememberedAnimeId,
+                episodeId: episode.episodeId,
+                animeTitle: episodesResponse.bangumi.animeTitle,
+                episodeTitle: episode.episodeTitle,
+                searchKeyword: getDanmakuSearchKeyword(title) || undefined,
+              },
+              false
+            );
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Load remembered danmaku failed:', error);
+      }
+    }
+
+    const searchKeyword = getDanmakuSearchKeyword(title) || searchTitle || title;
+    const searchResponse = await searchDanmakuAnime(searchKeyword);
+    if (!searchResponse.success || searchResponse.animes.length === 0) {
+      return;
+    }
+
+    const rememberedSourceIndex = getDanmakuSourceIndex(title);
+    if (
+      rememberedSourceIndex !== null &&
+      searchResponse.animes[rememberedSourceIndex]
+    ) {
+      await handleDanmakuSourceSelect(
+        searchResponse.animes[rememberedSourceIndex],
+        rememberedSourceIndex,
+        searchKeyword,
+        false
+      );
+      return;
+    }
+
+    if (searchResponse.animes.length > 1) {
+      setDanmakuMatches(searchResponse.animes);
+      setShowDanmakuSourceSelector(true);
+      return;
+    }
+
+    await handleDanmakuSourceSelect(searchResponse.animes[0], 0, searchKeyword, false);
+  }, [
+    currentDanmakuSelection?.animeId,
+    currentDanmakuSelection?.animeTitle,
+    currentDanmakuSelection?.searchKeyword,
+    handleDanmakuSelect,
+    handleDanmakuSourceSelect,
+    matchDanmakuEpisode,
+    searchTitle,
+  ]);
+
+  const handleUploadDanmaku = useCallback(
+    async (comments: DanmakuComment[]) => {
+      if (!danmakuPluginRef.current) return;
+
+      const title = (videoTitleRef.current || '').trim();
+      const episodeIndex = currentEpisodeIndexRef.current;
+
+      setDanmakuLoading(true);
+      try {
+        if (title && episodeIndex >= 0) {
+          await saveDanmakuToCache(title, episodeIndex, comments, {
+            animeId: currentDanmakuSelection?.animeId,
+            episodeId: currentDanmakuSelection?.episodeId,
+            animeTitle: currentDanmakuSelection?.animeTitle,
+            episodeTitle: currentDanmakuSelection?.episodeTitle,
+            searchKeyword: currentDanmakuSelection?.searchKeyword,
+          });
+        }
+
+        const formatted = convertDanmakuFormat(comments);
+        const { processed, originalCount } = normalizeDanmakuData(formatted);
+        applyDanmakuToPlayer(processed);
+
+        setDanmakuCount(processed.length);
+        setDanmakuOriginalCount(originalCount);
+        setCurrentDanmakuSelection((prev) =>
+          prev
+            ? {
+                ...prev,
+                danmakuCount: processed.length,
+                danmakuOriginalCount: originalCount > 0 ? originalCount : undefined,
+              }
+            : prev
+        );
+      } catch (error) {
+        console.error('Upload danmaku failed:', error);
+      } finally {
+        setDanmakuLoading(false);
+      }
+    },
+    [
+      applyDanmakuToPlayer,
+      currentDanmakuSelection,
+      normalizeDanmakuData,
+    ]
+  );
+
   useEffect(() => {
     if (
       !Artplayer ||
@@ -1673,12 +2067,21 @@ function PlayPageClient() {
         currentEpisodeIndex + 1
       }集`;
       artPlayerRef.current.poster = videoCover;
+      if (danmakuPluginRef.current) {
+        danmakuPluginRef.current.reset();
+        setDanmakuCount(0);
+        setDanmakuOriginalCount(0);
+      }
       if (artPlayerRef.current?.video) {
         ensureVideoSource(
           artPlayerRef.current.video as HTMLVideoElement,
           videoUrl
         );
       }
+      lastDanmakuAutoLoadKeyRef.current = '';
+      setTimeout(() => {
+        autoLoadDanmakuForCurrentEpisode();
+      }, 50);
       return;
     }
 
@@ -1690,6 +2093,7 @@ function PlayPageClient() {
       // 销毁播放器实例
       artPlayerRef.current.destroy();
       artPlayerRef.current = null;
+      danmakuPluginRef.current = null;
     }
 
     try {
@@ -1789,6 +2193,26 @@ function PlayPageClient() {
           loading:
             '<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48cGF0aCBkPSJNMjUuMjUxIDYuNDYxYy0xMC4zMTggMC0xOC42ODMgOC4zNjUtMTguNjgzIDE4LjY4M2g0LjA2OGMwLTguMDcgNi41NDUtMTQuNjE1IDE0LjYxNS0xNC42MTVWNi40NjF6IiBmaWxsPSIjMDA5Njg4Ij48YW5pbWF0ZVRyYW5zZm9ybSBhdHRyaWJ1dGVOYW1lPSJ0cmFuc2Zvcm0iIGF0dHJpYnV0ZVR5cGU9IlhNTCIgZHVyPSIxcyIgZnJvbT0iMCAyNSAyNSIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiIHRvPSIzNjAgMjUgMjUiIHR5cGU9InJvdGF0ZSIvPjwvcGF0aD48L3N2Zz4=">',
         },
+        plugins: [
+          artplayerPluginDanmuku({
+            danmuku: [],
+            speed: danmakuSettingsRef.current.speed,
+            opacity: danmakuSettingsRef.current.opacity,
+            fontSize: danmakuSettingsRef.current.fontSize,
+            color: '#FFFFFF',
+            mode: 0,
+            margin: [
+              danmakuSettingsRef.current.marginTop,
+              danmakuSettingsRef.current.marginBottom,
+            ],
+            antiOverlap: true,
+            synchronousPlayback: danmakuSettingsRef.current.synchronousPlayback,
+            emitter: false,
+            visible: danmakuDisplayStateRef.current,
+            filter: (danmu: any) =>
+              !isDanmakuBlocked(danmu.text || '', danmakuFilterConfigRef.current),
+          }),
+        ],
         settings: [
           {
             html: '去广告',
@@ -1884,6 +2308,15 @@ function PlayPageClient() {
               }
             },
           },
+          {
+            name: '弹幕屏蔽',
+            html: '弹幕屏蔽',
+            tooltip: `规则数: ${danmakuFilterConfigRef.current.rules.length}`,
+            onClick: function () {
+              setShowDanmakuFilterSettings(true);
+              return '';
+            },
+          },
         ],
         // 控制栏配置
         controls: [
@@ -1899,9 +2332,43 @@ function PlayPageClient() {
         ],
       });
 
+      if (artPlayerRef.current?.plugins?.artplayerPluginDanmuku) {
+        danmakuPluginRef.current = artPlayerRef.current.plugins.artplayerPluginDanmuku;
+
+        artPlayerRef.current.on('artplayerPluginDanmuku:config', () => {
+          if (!danmakuPluginRef.current?.option) return;
+
+          const option = danmakuPluginRef.current.option;
+          const nextSettings: DanmakuSettings = {
+            ...danmakuSettingsRef.current,
+            opacity: option.opacity ?? danmakuSettingsRef.current.opacity,
+            fontSize: option.fontSize ?? danmakuSettingsRef.current.fontSize,
+            speed: option.speed ?? danmakuSettingsRef.current.speed,
+            marginTop: option.margin?.[0] ?? danmakuSettingsRef.current.marginTop,
+            marginBottom:
+              option.margin?.[1] ?? danmakuSettingsRef.current.marginBottom,
+          };
+
+          setDanmakuSettings(nextSettings);
+        });
+
+        artPlayerRef.current.on('artplayerPluginDanmuku:show', () => {
+          danmakuDisplayStateRef.current = true;
+          saveDanmakuDisplayState(true);
+        });
+
+        artPlayerRef.current.on('artplayerPluginDanmuku:hide', () => {
+          danmakuDisplayStateRef.current = false;
+          saveDanmakuDisplayState(false);
+        });
+      }
+
       // 监听播放器事件
       artPlayerRef.current.on('ready', () => {
         setError(null);
+        setTimeout(() => {
+          autoLoadDanmakuForCurrentEpisode();
+        }, 100);
       });
 
       artPlayerRef.current.on('video:volumechange', () => {
@@ -2042,6 +2509,18 @@ function PlayPageClient() {
       setError('播放器初始化失败');
     }
   }, [Artplayer, Hls, videoUrl, loading, blockAdEnabled]);
+
+  useEffect(() => {
+    if (!danmakuPluginRef.current) return;
+    autoLoadDanmakuForCurrentEpisode();
+  }, [
+    currentEpisodeIndex,
+    currentSource,
+    currentId,
+    videoTitle,
+    videoUrl,
+    autoLoadDanmakuForCurrentEpisode,
+  ]);
 
   // 当组件卸载时清理定时器
   useEffect(() => {
@@ -2296,6 +2775,18 @@ function PlayPageClient() {
                     </div>
                   </div>
                 )}
+
+                {danmakuLoading && !isVideoLoading && (
+                  <div className='pointer-events-none absolute inset-0 z-[450] flex items-center justify-center rounded-xl bg-black/45 backdrop-blur-sm'>
+                    <div className='rounded-lg border border-white/20 bg-black/60 px-4 py-2 text-center text-sm text-white'>
+                      {danmakuCount > 0
+                        ? danmakuOriginalCount > 0
+                          ? `已加载 ${danmakuCount} 条弹幕（原始 ${danmakuOriginalCount} 条）`
+                          : `已加载 ${danmakuCount} 条弹幕`
+                        : '加载弹幕中...'}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2319,6 +2810,9 @@ function PlayPageClient() {
                 sourceSearchLoading={sourceSearchLoading}
                 sourceSearchError={sourceSearchError}
                 precomputedVideoInfo={precomputedVideoInfo}
+                onDanmakuSelect={(selection) => handleDanmakuSelect(selection, true)}
+                currentDanmakuSelection={currentDanmakuSelection}
+                onUploadDanmaku={handleUploadDanmaku}
               />
             </div>
           </div>
@@ -2467,6 +2961,78 @@ function PlayPageClient() {
         </div>
         </div>
       </div>
+
+      {showDanmakuSourceSelector && danmakuMatches.length > 0 && (
+        <div className='fixed inset-0 z-[1500] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm'>
+          <div className='w-full max-w-2xl overflow-hidden rounded-xl border border-white/20 bg-white shadow-2xl dark:bg-gray-900'>
+            <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100'>
+              选择弹幕源
+            </div>
+            <div className='max-h-[60vh] space-y-2 overflow-y-auto p-3'>
+              {danmakuMatches.map((anime, index) => (
+                <button
+                  key={`${anime.animeId}_${index}`}
+                  onClick={() =>
+                    handleDanmakuSourceSelect(
+                      anime,
+                      index,
+                      getDanmakuSearchKeyword(videoTitleRef.current || '') ||
+                        searchTitle ||
+                        videoTitleRef.current ||
+                        ''
+                    )
+                  }
+                  className='flex w-full items-start gap-3 rounded-lg bg-gray-100 p-3 text-left transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
+                >
+                  {anime.imageUrl ? (
+                    <img
+                      src={anime.imageUrl}
+                      alt={anime.animeTitle}
+                      className='h-14 w-10 flex-shrink-0 rounded object-cover'
+                    />
+                  ) : null}
+                  <div className='min-w-0 flex-1'>
+                    <div className='truncate text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                      {anime.animeTitle}
+                    </div>
+                    <div className='mt-1 text-xs text-gray-600 dark:text-gray-400'>
+                      {anime.typeDescription || anime.type}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className='border-t border-gray-200 p-3 dark:border-gray-700'>
+              <button
+                onClick={() => {
+                  setShowDanmakuSourceSelector(false);
+                  setDanmakuMatches([]);
+                }}
+                className='w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <DanmakuFilterSettings
+        isOpen={showDanmakuFilterSettings}
+        config={danmakuFilterConfig}
+        onChange={(config) => {
+          setDanmakuFilterConfig(config);
+          danmakuFilterConfigRef.current = config;
+          if (danmakuPluginRef.current) {
+            try {
+              danmakuPluginRef.current.load();
+            } catch (error) {
+              console.error('Reload danmaku after filter update failed:', error);
+            }
+          }
+        }}
+        onClose={() => setShowDanmakuFilterSettings(false)}
+      />
     </PageLayout>
   );
 }

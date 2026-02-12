@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
       ImageProxy,
       DoubanProxy,
       DisableYellowFilter,
+      DanmakuApiBase,
+      DanmakuApiToken,
     } = body as {
       SiteName: string;
       Announcement: string;
@@ -44,6 +46,8 @@ export async function POST(request: NextRequest) {
       ImageProxy: string;
       DoubanProxy: string;
       DisableYellowFilter: boolean;
+      DanmakuApiBase?: string;
+      DanmakuApiToken?: string;
     };
 
     // 参数校验
@@ -54,7 +58,9 @@ export async function POST(request: NextRequest) {
       typeof SiteInterfaceCacheTime !== 'number' ||
       typeof ImageProxy !== 'string' ||
       typeof DoubanProxy !== 'string' ||
-      typeof DisableYellowFilter !== 'boolean'
+      typeof DisableYellowFilter !== 'boolean' ||
+      (DanmakuApiBase !== undefined && typeof DanmakuApiBase !== 'string') ||
+      (DanmakuApiToken !== undefined && typeof DanmakuApiToken !== 'string')
     ) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
@@ -75,6 +81,7 @@ export async function POST(request: NextRequest) {
 
     // 更新缓存中的站点设置
     adminConfig.SiteConfig = {
+      ...adminConfig.SiteConfig,
       SiteName,
       Announcement,
       SearchDownstreamMaxPage,
@@ -82,6 +89,8 @@ export async function POST(request: NextRequest) {
       ImageProxy,
       DoubanProxy,
       DisableYellowFilter,
+      ...(typeof DanmakuApiBase === 'string' ? { DanmakuApiBase } : {}),
+      ...(typeof DanmakuApiToken === 'string' ? { DanmakuApiToken } : {}),
     };
 
     // 写入数据库
