@@ -96,15 +96,20 @@ interface WatchFormatStats {
   total: number;
 }
 
+interface WatchFormatChartDataPoint {
+  category: string;
+  movie: number;
+  tv: number;
+}
+
 const PolarAngleAxisCompat = PolarAngleAxis as unknown as (props: {
   dataKey: string;
   tick?: { fill: string; fontSize: number };
 }) => JSX.Element;
-const PolarRadiusAxisCompat = PolarRadiusAxis as unknown as (props: {
+const PolarAngleAxisNumberCompat = PolarAngleAxis as unknown as (props: {
+  type?: 'number';
+  domain?: [number, number];
   tick?: boolean;
-  tickLine?: boolean;
-  axisLine?: boolean;
-  children?: JSX.Element;
 }) => JSX.Element;
 
 const ANALYSIS_VIEW_CONFIG = {
@@ -137,6 +142,14 @@ const ANALYSIS_VIEW_CONFIG = {
 const GENRE_ANALYSIS_MAX_ITEMS = 80;
 const GENRE_TOOLTIP_POSTER_LIMIT = 3;
 const GENRE_TOOLTIP_POSTER_CACHE_LIMIT = 8;
+const WATCH_FORMAT_COLORS: Record<'movie' | 'tv', string> = {
+  tv: '#22d3ee',
+  movie: '#60a5fa',
+};
+const WATCH_FORMAT_LABELS: Record<'movie' | 'tv', string> = {
+  tv: '连续剧',
+  movie: '电影',
+};
 const GENRE_SCOPE_OPTIONS: Array<{ value: GenreScope; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'movie', label: '电影' },
@@ -280,6 +293,25 @@ function normalizePosterUrl(url: string): string {
   if (!trimmed) return '';
   if (trimmed.startsWith('//')) return `https:${trimmed}`;
   return trimmed;
+}
+
+function getWatchFormat(record: Pick<PlayRecord, 'index' | 'total_episodes' | 'title' | 'search_title'>): 'movie' | 'tv' {
+  const totalEpisodes = Number(record.total_episodes || 0);
+  if (Number.isFinite(totalEpisodes) && totalEpisodes > 1) return 'tv';
+
+  const watchedIndex = Number(record.index || 0);
+  if (Number.isFinite(watchedIndex) && watchedIndex > 1) return 'tv';
+
+  const titleText = `${record.title || ''} ${record.search_title || ''}`.toLowerCase();
+  if (
+    /(第\s*\d+\s*集|全\s*\d+\s*集|更新至\s*\d+\s*集|s\s*\d{1,2}\s*e\s*\d{1,3}|ep?\s*\d{1,3})/i.test(
+      titleText
+    )
+  ) {
+    return 'tv';
+  }
+
+  return 'movie';
 }
 
 function isHttpPosterUrl(url: string): boolean {
@@ -625,7 +657,7 @@ function MyPageClient() {
     let movie = 0;
 
     for (const record of playRecords) {
-      if (record.total_episodes > 1) {
+      if (getWatchFormat(record) === 'tv') {
         tv += 1;
       } else {
         movie += 1;
@@ -639,10 +671,10 @@ function MyPageClient() {
     };
   }, [playRecords]);
 
-  const watchFormatChartData = useMemo(
+  const watchFormatChartData = useMemo<WatchFormatChartDataPoint[]>(
     () => [
       {
-        period: 'all',
+        category: '内容形态',
         tv: watchFormatStats.tv,
         movie: watchFormatStats.movie,
       },
@@ -1350,7 +1382,7 @@ function MyPageClient() {
                       按历史记录区分电影与连续剧
                     </p>
                   </div>
-                  <div className='h-72 w-full sm:h-80'>
+                  <div className='relative h-72 w-full sm:h-80'>
                     {loadingPlayRecords ? (
                       <div className='flex h-full items-center justify-center text-sm text-gray-400'>
                         正在统计内容形态...
@@ -1359,28 +1391,38 @@ function MyPageClient() {
                       <ResponsiveContainer width='100%' height='100%'>
                         <RadialBarChart
                           data={watchFormatChartData}
-                          endAngle={180}
+                          startAngle={180}
+                          endAngle={0}
                           innerRadius={80}
                           outerRadius={130}
-                          cy='62%'
+                          cy='56%'
                         >
+                          <PolarAngleAxisNumberCompat
+                            type='number'
+                            domain={[0, Math.max(watchFormatStats.total, 1)]}
+                            tick={false}
+                          />
+                          <PolarRadiusAxis
+                            tick={false}
+                            tickLine={false}
+                            axisLine={false}
+                          >
+                            <Label content={() => null} />
+                          </PolarRadiusAxis>
                           <Tooltip
                             cursor={false}
                             content={({ active, payload }) => {
                               if (!active || !payload?.length) return null;
-                              const dataKey =
-                                typeof payload[0]?.dataKey === 'string'
-                                  ? payload[0].dataKey
-                                  : '';
-                              const format =
-                                dataKey === 'tv' ? '连续剧' : '电影';
-                              const dotColor =
-                                dataKey === 'tv' ? '#22d3ee' : '#60a5fa';
-                              const value = payload[0]?.value;
-                              const numericValue =
-                                typeof value === 'number'
-                                  ? value
-                                  : Number(value || 0);
+                              const current = payload.find((entry) => {
+                                const key = String(entry?.dataKey || '');
+                                return key === 'tv' || key === 'movie';
+                              });
+                              if (!current) return null;
+
+                              const key = String(current.dataKey) as 'movie' | 'tv';
+                              const value = Number(current.value || 0);
+                              const total = watchFormatStats.total > 0 ? watchFormatStats.total : 1;
+                              const percent = (value / total) * 100;
 
                               return (
                                 <div className='rounded-xl border border-zinc-700 bg-black/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-sm'>
@@ -1390,79 +1432,33 @@ function MyPageClient() {
                                   <div className='flex items-center gap-2'>
                                     <span
                                       className='inline-block h-2 w-2 rounded-full'
-                                      style={{ backgroundColor: dotColor }}
+                                      style={{
+                                        backgroundColor: WATCH_FORMAT_COLORS[key],
+                                      }}
                                     />
                                     <span className='text-white/85'>
-                                      {format}
+                                      {WATCH_FORMAT_LABELS[key]}
                                     </span>
                                     <span className='font-semibold text-white'>
-                                      {Number.isFinite(numericValue)
-                                        ? numericValue
-                                        : 0}{' '}
-                                      条
+                                      {value} 条 · {percent.toFixed(1)}%
                                     </span>
                                   </div>
                                 </div>
                               );
                             }}
                           />
-                          <PolarRadiusAxisCompat
-                            tick={false}
-                            tickLine={false}
-                            axisLine={false}
-                          >
-                            <Label
-                              content={({ viewBox }) => {
-                                if (
-                                  !viewBox ||
-                                  typeof viewBox !== 'object' ||
-                                  !('cx' in viewBox) ||
-                                  !('cy' in viewBox)
-                                ) {
-                                  return null;
-                                }
-                                const cx = Number(
-                                  (viewBox as { cx?: number }).cx || 0
-                                );
-                                const cy = Number(
-                                  (viewBox as { cy?: number }).cy || 0
-                                );
-                                return (
-                                  <text x={cx} y={cy} textAnchor='middle'>
-                                    <tspan
-                                      x={cx}
-                                      y={cy - 12}
-                                      fill='#fff'
-                                      fontSize='24'
-                                      fontWeight='700'
-                                    >
-                                      {watchFormatStats.total.toLocaleString()}
-                                    </tspan>
-                                    <tspan
-                                      x={cx}
-                                      y={cy + 10}
-                                      fill='#9ca3af'
-                                      fontSize='12'
-                                    >
-                                      总观看
-                                    </tspan>
-                                  </text>
-                                );
-                              }}
-                            />
-                          </PolarRadiusAxisCompat>
                           <RadialBar
                             dataKey='tv'
-                            stackId='a'
+                            stackId='watch-format'
                             cornerRadius={5}
-                            fill='#22d3ee'
+                            fill={WATCH_FORMAT_COLORS.tv}
                             className='stroke-transparent stroke-2'
                           />
                           <RadialBar
                             dataKey='movie'
-                            stackId='a'
+                            stackId='watch-format'
                             cornerRadius={5}
-                            fill='#60a5fa'
+                            fill={WATCH_FORMAT_COLORS.movie}
                             className='stroke-transparent stroke-2'
                           />
                         </RadialBarChart>
@@ -1472,6 +1468,14 @@ function MyPageClient() {
                         暂无可用统计数据
                       </div>
                     )}
+                    {watchFormatStats.total > 0 ? (
+                      <div className='pointer-events-none absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2 text-center'>
+                        <p className='text-2xl font-bold text-white'>
+                          {watchFormatStats.total.toLocaleString()}
+                        </p>
+                        <p className='text-xs text-gray-400'>总观看</p>
+                      </div>
+                    ) : null}
                   </div>
                   <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400'>
                     <div className='inline-flex items-center gap-1.5'>
