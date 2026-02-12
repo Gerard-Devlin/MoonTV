@@ -2,8 +2,8 @@
 
 import { BarChart3, Heart, History, Search, X } from 'lucide-react';
 import {
-  Suspense,
   type SyntheticEvent,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -240,6 +240,39 @@ function parseStorageKey(key: string): { source: string; id: string } {
     source: key.slice(0, splitIndex),
     id: key.slice(splitIndex + 1),
   };
+}
+
+function stripSeasonHintFromTitle(title: string): string {
+  return (title || '')
+    .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*季/gi, ' ')
+    .replace(/第\s*\d+\s*部/gi, ' ')
+    .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*辑/gi, ' ')
+    .replace(/(?:season|series|s)\s*0*\d{1,2}/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildTmdbTitleCandidates(
+  record: Pick<PlayRecord, 'title'> & { search_title?: string }
+): string[] {
+  const candidates: string[] = [];
+  const dedupe = new Set<string>();
+
+  const push = (value?: string) => {
+    const normalized = (value || '').trim();
+    if (!normalized) return;
+    const key = normalized.toLowerCase();
+    if (dedupe.has(key)) return;
+    dedupe.add(key);
+    candidates.push(normalized);
+  };
+
+  push(record.title);
+  push(record.search_title);
+  push(stripSeasonHintFromTitle(record.title));
+  push(stripSeasonHintFromTitle(record.search_title || ''));
+
+  return candidates;
 }
 
 function normalizePosterUrl(url: string): string {
@@ -623,38 +656,57 @@ function MyPageClient() {
       if (cached) return cached;
 
       const { source, id } = parseStorageKey(record.key);
-      const params = new URLSearchParams();
-      params.set('mediaType', record.total_episodes > 1 ? 'tv' : 'movie');
-      if (record.year) params.set('year', record.year);
-      if (record.cover) params.set('poster', record.cover);
+      const baseParams = new URLSearchParams();
+      baseParams.set('mediaType', record.total_episodes > 1 ? 'tv' : 'movie');
+      if (record.year) baseParams.set('year', record.year);
+      if (record.cover) baseParams.set('poster', record.cover);
+
+      const fetchGenresWithParams = async (
+        params: URLSearchParams
+      ): Promise<string[] | null> => {
+        try {
+          const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
+          if (!response.ok) {
+            return null;
+          }
+          const payload = (await response.json()) as { genres?: unknown };
+          const genres = Array.isArray(payload.genres)
+            ? payload.genres
+                .map((item) => (typeof item === 'string' ? item.trim() : ''))
+                .filter(Boolean)
+            : [];
+          return genres;
+        } catch {
+          return null;
+        }
+      };
 
       if (source === 'tmdb' && /^\d+$/.test(id)) {
+        const params = new URLSearchParams(baseParams);
         params.set('id', id);
-      } else if (record.title) {
-        params.set('title', record.title);
-      } else {
+        const genres = (await fetchGenresWithParams(params)) || [];
+        genreCacheRef.current.set(record.key, genres);
+        return genres;
+      }
+
+      const titleCandidates = buildTmdbTitleCandidates(record);
+      if (titleCandidates.length === 0) {
         genreCacheRef.current.set(record.key, []);
         return [];
       }
 
-      try {
-        const response = await fetch(`/api/tmdb/detail?${params.toString()}`);
-        if (!response.ok) {
-          genreCacheRef.current.set(record.key, []);
-          return [];
+      for (const titleCandidate of titleCandidates) {
+        const params = new URLSearchParams(baseParams);
+        params.set('title', titleCandidate);
+        const genres = await fetchGenresWithParams(params);
+        if (genres && genres.length > 0) {
+          genreCacheRef.current.set(record.key, genres);
+          return genres;
         }
-        const payload = (await response.json()) as { genres?: unknown };
-        const genres = Array.isArray(payload.genres)
-          ? payload.genres
-              .map((item) => (typeof item === 'string' ? item.trim() : ''))
-              .filter(Boolean)
-          : [];
-        genreCacheRef.current.set(record.key, genres);
-        return genres;
-      } catch {
-        genreCacheRef.current.set(record.key, []);
-        return [];
       }
+
+      genreCacheRef.current.set(record.key, []);
+      return [];
     },
     []
   );
