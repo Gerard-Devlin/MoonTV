@@ -166,6 +166,43 @@ function PlayPageClient() {
     blockAdEnabledRef.current = blockAdEnabled;
   }, [blockAdEnabled]);
 
+  // Anime4K 超分相关状态
+  const [webGPUSupported, setWebGPUSupported] = useState<boolean>(false);
+  const [anime4kEnabled, setAnime4kEnabled] = useState<boolean>(false);
+  const [anime4kMode, setAnime4kMode] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const mode = localStorage.getItem('anime4k_mode');
+      if (
+        mode &&
+        ['ModeA', 'ModeB', 'ModeC', 'ModeAA', 'ModeBB', 'ModeCA'].includes(mode)
+      ) {
+        return mode;
+      }
+    }
+    return 'ModeA';
+  });
+  const [anime4kScale, setAnime4kScale] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const scale = parseFloat(localStorage.getItem('anime4k_scale') || '');
+      if ([1.5, 2, 3, 4].includes(scale)) {
+        return scale;
+      }
+    }
+    return 2.0;
+  });
+  const anime4kRef = useRef<any>(null);
+  const anime4kEnabledRef = useRef(anime4kEnabled);
+  const anime4kModeRef = useRef(anime4kMode);
+  const anime4kScaleRef = useRef(anime4kScale);
+  const pendingAnime4KInitRef = useRef(false);
+  const orientationLockActiveRef = useRef(false);
+
+  useEffect(() => {
+    anime4kEnabledRef.current = anime4kEnabled;
+    anime4kModeRef.current = anime4kMode;
+    anime4kScaleRef.current = anime4kScale;
+  }, [anime4kEnabled, anime4kMode, anime4kScale]);
+
   // 视频基本信息
   const [videoTitle, setVideoTitle] = useState(searchParams.get('title') || '');
   const [videoYear, setVideoYear] = useState(searchParams.get('year') || '');
@@ -302,6 +339,99 @@ function PlayPageClient() {
     new Map()
   );
   const tmdbDetailRequestIdRef = useRef(0);
+
+  // 检测 WebGPU 支持，并修补 requestDevice limits 以兼容 anime4k-webgpu
+  useEffect(() => {
+    const checkWebGPUSupport = async () => {
+      if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
+        setWebGPUSupported(false);
+        return;
+      }
+
+      try {
+        const gpu = (navigator as any).gpu;
+        if (!gpu.__anime4kAdapterPatched) {
+          const originalRequestAdapter = gpu.requestAdapter.bind(gpu);
+          gpu.requestAdapter = async (options?: any) => {
+            const adapter = await originalRequestAdapter(options);
+            if (!adapter) return adapter;
+
+            if (!(adapter as any).__anime4kDevicePatched) {
+              const originalRequestDevice = adapter.requestDevice.bind(adapter);
+              adapter.requestDevice = async (descriptor?: any) => {
+                const limits = adapter.limits || {};
+                const enhancedDescriptor = {
+                  ...descriptor,
+                  requiredLimits: {
+                    ...descriptor?.requiredLimits,
+                    maxBufferSize: Math.min(
+                      limits.maxBufferSize || 2147483648,
+                      2147483648
+                    ),
+                    maxStorageBufferBindingSize: Math.min(
+                      limits.maxStorageBufferBindingSize || 1073741824,
+                      1073741824
+                    ),
+                  },
+                };
+                return originalRequestDevice(enhancedDescriptor);
+              };
+              (adapter as any).__anime4kDevicePatched = true;
+            }
+
+            return adapter;
+          };
+          gpu.__anime4kAdapterPatched = true;
+        }
+
+        const adapter = await (navigator as any).gpu.requestAdapter();
+        setWebGPUSupported(Boolean(adapter));
+      } catch (err) {
+        console.warn('WebGPU 检测失败:', err);
+        setWebGPUSupported(false);
+      }
+    };
+
+    checkWebGPUSupport();
+  }, []);
+
+  const isMobileViewport = () => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    return (
+      /Android|iPhone|iPad|iPod|Mobile|Windows Phone|HarmonyOS/i.test(ua) ||
+      window.matchMedia('(max-width: 1024px)').matches
+    );
+  };
+
+  const tryLockLandscape = async () => {
+    if (typeof window === 'undefined') return;
+    if (!isMobileViewport()) return;
+    try {
+      const orientationApi = (screen as any)?.orientation;
+      if (orientationApi?.lock) {
+        await orientationApi.lock('landscape');
+        orientationLockActiveRef.current = true;
+      }
+    } catch (err) {
+      console.debug('锁定横屏失败，浏览器可能不支持或未处于全屏:', err);
+    }
+  };
+
+  const tryUnlockOrientation = async () => {
+    if (typeof window === 'undefined') return;
+    if (!orientationLockActiveRef.current) return;
+    try {
+      const orientationApi = (screen as any)?.orientation;
+      if (orientationApi?.unlock) {
+        orientationApi.unlock();
+      }
+    } catch (err) {
+      console.debug('恢复屏幕方向失败:', err);
+    } finally {
+      orientationLockActiveRef.current = false;
+    }
+  };
 
   useEffect(() => {
     danmakuSettingsRef.current = danmakuSettings;
@@ -1078,6 +1208,287 @@ function PlayPageClient() {
       return `${hours.toString().padStart(2, '0')}:${minutes
         .toString()
         .padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+  };
+
+  // 初始化 Anime4K 超分
+  const initAnime4K = async () => {
+    if (!webGPUSupported || !artPlayerRef.current?.video) return;
+
+    let frameRequestId: number | null = null;
+    let outputCanvas: HTMLCanvasElement | null = null;
+
+    try {
+      if (anime4kRef.current) {
+        await cleanupAnime4K();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      const video = artPlayerRef.current.video as HTMLVideoElement;
+      if (!video.videoWidth || !video.videoHeight) {
+        await new Promise<void>((resolve) => {
+          const onLoadedMetadata = () => {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            resolve();
+          };
+          video.addEventListener('loadedmetadata', onLoadedMetadata);
+          if (video.videoWidth && video.videoHeight) {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            resolve();
+          }
+        });
+      }
+
+      if (!video.videoWidth || !video.videoHeight) {
+        throw new Error('无法获取视频尺寸');
+      }
+
+      const container =
+        artPlayerRef.current.template?.$video?.parentElement || video.parentElement;
+      if (!container) {
+        throw new Error('无法找到视频容器');
+      }
+
+      const scale = anime4kScaleRef.current;
+      outputCanvas = document.createElement('canvas');
+      outputCanvas.width = Math.floor(video.videoWidth * scale);
+      outputCanvas.height = Math.floor(video.videoHeight * scale);
+      outputCanvas.style.position = 'absolute';
+      outputCanvas.style.top = '0';
+      outputCanvas.style.left = '0';
+      outputCanvas.style.width = '100%';
+      outputCanvas.style.height = '100%';
+      outputCanvas.style.objectFit = 'contain';
+      outputCanvas.style.cursor = 'pointer';
+      outputCanvas.style.zIndex = '1';
+      outputCanvas.style.backgroundColor = 'transparent';
+
+      const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
+      let sourceCanvas: HTMLCanvasElement | null = null;
+      let sourceCtx: CanvasRenderingContext2D | null = null;
+
+      if (isFirefox) {
+        sourceCanvas = document.createElement('canvas');
+        sourceCanvas.width = Math.floor(video.videoWidth);
+        sourceCanvas.height = Math.floor(video.videoHeight);
+        sourceCtx = sourceCanvas.getContext('2d', {
+          willReadFrequently: true,
+          alpha: false,
+        });
+        if (!sourceCtx) {
+          throw new Error('无法创建 Firefox 中转 Canvas 上下文');
+        }
+
+        if (video.readyState >= video.HAVE_CURRENT_DATA) {
+          sourceCtx.drawImage(video, 0, 0, sourceCanvas.width, sourceCanvas.height);
+        }
+      }
+
+      const handleCanvasClick = () => {
+        artPlayerRef.current?.toggle?.();
+      };
+      const handleCanvasDblClick = () => {
+        if (artPlayerRef.current) {
+          artPlayerRef.current.fullscreen = !artPlayerRef.current.fullscreen;
+        }
+      };
+      outputCanvas.addEventListener('click', handleCanvasClick);
+      outputCanvas.addEventListener('dblclick', handleCanvasDblClick);
+
+      video.style.opacity = '0';
+      video.style.pointerEvents = 'none';
+      video.style.position = 'absolute';
+      video.style.zIndex = '-1';
+      container.insertBefore(outputCanvas, video);
+
+      if (isFirefox && sourceCanvas && sourceCtx) {
+        const captureVideoFrame = () => {
+          if (video.readyState >= video.HAVE_CURRENT_DATA) {
+            sourceCtx!.drawImage(video, 0, 0, sourceCanvas!.width, sourceCanvas!.height);
+          }
+          frameRequestId = requestAnimationFrame(captureVideoFrame);
+        };
+        captureVideoFrame();
+      }
+
+      const {
+        render: anime4kRender,
+        ModeA,
+        ModeB,
+        ModeC,
+        ModeAA,
+        ModeBB,
+        ModeCA,
+      } = await import('anime4k-webgpu');
+      const modeMap: Record<string, any> = {
+        ModeA,
+        ModeB,
+        ModeC,
+        ModeAA,
+        ModeBB,
+        ModeCA,
+      };
+      const ModeClass = modeMap[anime4kModeRef.current] || ModeA;
+
+      const renderConfig: any = {
+        video: isFirefox ? sourceCanvas : video,
+        canvas: outputCanvas,
+        pipelineBuilder: (device: any, inputTexture: any) => {
+          const mode = new ModeClass({
+            device,
+            inputTexture,
+            nativeDimensions: {
+              width: Math.floor(video.videoWidth),
+              height: Math.floor(video.videoHeight),
+            },
+            targetDimensions: {
+              width: Math.floor(outputCanvas!.width),
+              height: Math.floor(outputCanvas!.height),
+            },
+          });
+          return [mode];
+        },
+      };
+
+      const controller = await anime4kRender(renderConfig);
+      anime4kRef.current = {
+        controller,
+        canvas: outputCanvas,
+        sourceCanvas: isFirefox ? sourceCanvas : null,
+        frameRequestId: isFirefox ? frameRequestId : null,
+        handleCanvasClick,
+        handleCanvasDblClick,
+      };
+      artPlayerRef.current.notice.show = `超分已启用 (${anime4kModeRef.current}, ${scale}x)`;
+    } catch (err) {
+      console.error('初始化 Anime4K 失败:', err);
+      if (frameRequestId) {
+        cancelAnimationFrame(frameRequestId);
+      }
+      if (outputCanvas?.parentNode) {
+        outputCanvas.parentNode.removeChild(outputCanvas);
+      }
+      if (artPlayerRef.current?.video) {
+        artPlayerRef.current.video.style.opacity = '1';
+        artPlayerRef.current.video.style.pointerEvents = 'auto';
+        artPlayerRef.current.video.style.position = '';
+        artPlayerRef.current.video.style.zIndex = '';
+      }
+      artPlayerRef.current?.notice &&
+        (artPlayerRef.current.notice.show =
+          '超分启用失败：' + (err instanceof Error ? err.message : '未知错误'));
+    }
+  };
+
+  // 清理 Anime4K
+  const cleanupAnime4K = async () => {
+    if (anime4kRef.current) {
+      try {
+        if (anime4kRef.current.frameRequestId) {
+          cancelAnimationFrame(anime4kRef.current.frameRequestId);
+        }
+        anime4kRef.current.controller?.stop?.();
+
+        if (anime4kRef.current.canvas) {
+          if (anime4kRef.current.handleCanvasClick) {
+            anime4kRef.current.canvas.removeEventListener(
+              'click',
+              anime4kRef.current.handleCanvasClick
+            );
+          }
+          if (anime4kRef.current.handleCanvasDblClick) {
+            anime4kRef.current.canvas.removeEventListener(
+              'dblclick',
+              anime4kRef.current.handleCanvasDblClick
+            );
+          }
+          if (anime4kRef.current.canvas.parentNode) {
+            anime4kRef.current.canvas.parentNode.removeChild(anime4kRef.current.canvas);
+          }
+        }
+
+        if (anime4kRef.current.sourceCanvas) {
+          const ctx = anime4kRef.current.sourceCanvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(
+              0,
+              0,
+              anime4kRef.current.sourceCanvas.width,
+              anime4kRef.current.sourceCanvas.height
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('清理 Anime4K 时出错:', err);
+      } finally {
+        anime4kRef.current = null;
+      }
+    }
+
+    if (artPlayerRef.current?.video) {
+      artPlayerRef.current.video.style.opacity = '1';
+      artPlayerRef.current.video.style.pointerEvents = 'auto';
+      artPlayerRef.current.video.style.position = '';
+      artPlayerRef.current.video.style.zIndex = '';
+    }
+  };
+
+  // 切换 Anime4K 状态
+  const toggleAnime4K = async (enabled: boolean) => {
+    if (enabled && !webGPUSupported) {
+      artPlayerRef.current?.notice &&
+        (artPlayerRef.current.notice.show = '当前浏览器不支持 WebGPU，无法启用超分');
+      return;
+    }
+
+    try {
+      if (enabled) {
+        pendingAnime4KInitRef.current = false;
+        await initAnime4K();
+      } else {
+        pendingAnime4KInitRef.current = false;
+        await cleanupAnime4K();
+      }
+      setAnime4kEnabled(enabled);
+      localStorage.setItem('enable_anime4k', String(enabled));
+    } catch (err) {
+      console.error('切换超分状态失败:', err);
+      artPlayerRef.current?.notice &&
+        (artPlayerRef.current.notice.show = '切换超分状态失败');
+    }
+  };
+
+  // 更改 Anime4K 模式
+  const changeAnime4KMode = async (mode: string) => {
+    try {
+      setAnime4kMode(mode);
+      localStorage.setItem('anime4k_mode', mode);
+
+      if (anime4kEnabledRef.current) {
+        await cleanupAnime4K();
+        await initAnime4K();
+      }
+    } catch (err) {
+      console.error('更改超分模式失败:', err);
+      artPlayerRef.current?.notice &&
+        (artPlayerRef.current.notice.show = '更改超分模式失败');
+    }
+  };
+
+  // 更改 Anime4K 超分倍数
+  const changeAnime4KScale = async (scale: number) => {
+    try {
+      setAnime4kScale(scale);
+      localStorage.setItem('anime4k_scale', scale.toString());
+
+      if (anime4kEnabledRef.current) {
+        await cleanupAnime4K();
+        await initAnime4K();
+      }
+    } catch (err) {
+      console.error('更改超分倍数失败:', err);
+      artPlayerRef.current?.notice &&
+        (artPlayerRef.current.notice.show = '更改超分倍数失败');
     }
   };
 
@@ -2128,6 +2539,10 @@ function PlayPageClient() {
 
     // 非WebKit浏览器且播放器已存在，使用switch方法切换
     if (!isWebkit && artPlayerRef.current) {
+      if (anime4kEnabledRef.current) {
+        pendingAnime4KInitRef.current = true;
+        void cleanupAnime4K();
+      }
       artPlayerRef.current.switch = videoUrl;
       artPlayerRef.current.title = `${videoTitle} - 第${
         currentEpisodeIndex + 1
@@ -2153,6 +2568,11 @@ function PlayPageClient() {
 
     // WebKit浏览器或首次创建：销毁之前的播放器实例并创建新的
     if (artPlayerRef.current) {
+      if (anime4kEnabledRef.current) {
+        pendingAnime4KInitRef.current = true;
+        void cleanupAnime4K();
+      }
+      (artPlayerRef.current as any)?.__cleanupFullscreenOrientation?.();
       if (artPlayerRef.current.video && artPlayerRef.current.video.hls) {
         artPlayerRef.current.video.hls.destroy();
       }
@@ -2164,6 +2584,9 @@ function PlayPageClient() {
 
     try {
       // 创建新的播放器实例
+      if (anime4kEnabledRef.current) {
+        pendingAnime4KInitRef.current = true;
+      }
       Artplayer.PLAYBACK_RATE = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
       Artplayer.USE_RAF = true;
 
@@ -2292,6 +2715,11 @@ function PlayPageClient() {
               try {
                 localStorage.setItem('enable_blockad', String(newVal));
                 if (artPlayerRef.current) {
+                  if (anime4kEnabledRef.current) {
+                    pendingAnime4KInitRef.current = true;
+                    void cleanupAnime4K();
+                  }
+                  (artPlayerRef.current as any)?.__cleanupFullscreenOrientation?.();
                   resumeTimeRef.current = artPlayerRef.current.currentTime;
                   if (
                     artPlayerRef.current.video &&
@@ -2309,6 +2737,91 @@ function PlayPageClient() {
               return newVal ? '当前开启' : '当前关闭';
             },
           },
+          ...(webGPUSupported
+            ? [
+                {
+                  name: 'Anime4K超分',
+                  html: 'Anime4K超分',
+                  icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 18c-4 0-7-3-7-7V9l7-3.5L19 9v4c0 4-3 7-7 7z" fill="#ffffff"/><path d="M10 12l2 2 4-4" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+                  switch: anime4kEnabledRef.current,
+                  onSwitch: async function (item: any) {
+                    const newVal = !item.switch;
+                    await toggleAnime4K(newVal);
+                    return newVal;
+                  },
+                },
+                {
+                  name: '超分模式',
+                  html: '超分模式',
+                  selector: [
+                    {
+                      html: 'ModeA (快速)',
+                      value: 'ModeA',
+                      default: anime4kModeRef.current === 'ModeA',
+                    },
+                    {
+                      html: 'ModeB (平衡)',
+                      value: 'ModeB',
+                      default: anime4kModeRef.current === 'ModeB',
+                    },
+                    {
+                      html: 'ModeC (质量)',
+                      value: 'ModeC',
+                      default: anime4kModeRef.current === 'ModeC',
+                    },
+                    {
+                      html: 'ModeAA (增强快速)',
+                      value: 'ModeAA',
+                      default: anime4kModeRef.current === 'ModeAA',
+                    },
+                    {
+                      html: 'ModeBB (增强平衡)',
+                      value: 'ModeBB',
+                      default: anime4kModeRef.current === 'ModeBB',
+                    },
+                    {
+                      html: 'ModeCA (最高质量)',
+                      value: 'ModeCA',
+                      default: anime4kModeRef.current === 'ModeCA',
+                    },
+                  ],
+                  onSelect: async function (item: any) {
+                    await changeAnime4KMode(item.value);
+                    return item.html;
+                  },
+                },
+                {
+                  name: '超分倍数',
+                  html: '超分倍数',
+                  selector: [
+                    {
+                      html: '1.5x',
+                      value: '1.5',
+                      default: anime4kScaleRef.current === 1.5,
+                    },
+                    {
+                      html: '2.0x',
+                      value: '2.0',
+                      default: anime4kScaleRef.current === 2.0,
+                    },
+                    {
+                      html: '3.0x',
+                      value: '3.0',
+                      default: anime4kScaleRef.current === 3.0,
+                    },
+                    {
+                      html: '4.0x',
+                      value: '4.0',
+                      default: anime4kScaleRef.current === 4.0,
+                    },
+                  ],
+                  onSelect: async function (item: any) {
+                    await changeAnime4KScale(parseFloat(item.value));
+                    return item.html;
+                  },
+                },
+              ]
+            : []),
           {
             name: '跳过片头片尾',
             html: '跳过片头片尾',
@@ -2401,6 +2914,79 @@ function PlayPageClient() {
         ],
       });
 
+      const playerInstance = artPlayerRef.current;
+      const syncOrientationWithFullscreen = async () => {
+        if (!playerInstance) return;
+        const videoElement = playerInstance.video as any;
+        const isNativeFullscreen = Boolean(document.fullscreenElement);
+        const isPlayerFullscreen = Boolean(playerInstance.fullscreen);
+        const isWebFullscreen = Boolean(playerInstance.fullscreenWeb);
+        const isWebkitVideoFullscreen = Boolean(
+          videoElement?.webkitDisplayingFullscreen
+        );
+        const enteringFullscreen =
+          isNativeFullscreen ||
+          isPlayerFullscreen ||
+          isWebFullscreen ||
+          isWebkitVideoFullscreen;
+
+        if (enteringFullscreen) {
+          await tryLockLandscape();
+        } else {
+          await tryUnlockOrientation();
+        }
+      };
+
+      const handleFullscreenStateChange = () => {
+        void syncOrientationWithFullscreen();
+      };
+      const handleDocumentFullscreenChange = () => {
+        void syncOrientationWithFullscreen();
+      };
+      const handleWebkitBeginFullscreen = () => {
+        void syncOrientationWithFullscreen();
+      };
+      const handleWebkitEndFullscreen = () => {
+        void syncOrientationWithFullscreen();
+      };
+
+      playerInstance.on('fullscreen', handleFullscreenStateChange);
+      playerInstance.on('fullscreenWeb', handleFullscreenStateChange);
+      document.addEventListener('fullscreenchange', handleDocumentFullscreenChange);
+      if ((playerInstance.video as any)?.addEventListener) {
+        (playerInstance.video as any).addEventListener(
+          'webkitbeginfullscreen',
+          handleWebkitBeginFullscreen
+        );
+        (playerInstance.video as any).addEventListener(
+          'webkitendfullscreen',
+          handleWebkitEndFullscreen
+        );
+      }
+
+      let orientationCleanupDone = false;
+      (playerInstance as any).__cleanupFullscreenOrientation = () => {
+        if (orientationCleanupDone) return;
+        orientationCleanupDone = true;
+        playerInstance.off('fullscreen', handleFullscreenStateChange);
+        playerInstance.off('fullscreenWeb', handleFullscreenStateChange);
+        document.removeEventListener(
+          'fullscreenchange',
+          handleDocumentFullscreenChange
+        );
+        if ((playerInstance.video as any)?.removeEventListener) {
+          (playerInstance.video as any).removeEventListener(
+            'webkitbeginfullscreen',
+            handleWebkitBeginFullscreen
+          );
+          (playerInstance.video as any).removeEventListener(
+            'webkitendfullscreen',
+            handleWebkitEndFullscreen
+          );
+        }
+        void tryUnlockOrientation();
+      };
+
       if (artPlayerRef.current?.plugins?.artplayerPluginDanmuku) {
         danmakuPluginRef.current =
           artPlayerRef.current.plugins.artplayerPluginDanmuku;
@@ -2486,6 +3072,11 @@ function PlayPageClient() {
 
         // 隐藏换源加载状态
         setIsVideoLoading(false);
+
+        if (anime4kEnabledRef.current && pendingAnime4KInitRef.current) {
+          pendingAnime4KInitRef.current = false;
+          void initAnime4K();
+        }
       });
 
       // 监听视频时间更新事件，实现跳过片头片尾
@@ -2575,6 +3166,7 @@ function PlayPageClient() {
           videoUrl
         );
       }
+      void syncOrientationWithFullscreen();
     } catch (err) {
       console.error('创建播放器失败:', err);
       setError('播放器初始化失败');
@@ -2599,6 +3191,9 @@ function PlayPageClient() {
       if (saveIntervalRef.current) {
         clearInterval(saveIntervalRef.current);
       }
+      (artPlayerRef.current as any)?.__cleanupFullscreenOrientation?.();
+      void tryUnlockOrientation();
+      void cleanupAnime4K();
     };
   }, []);
 
