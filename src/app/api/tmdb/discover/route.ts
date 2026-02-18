@@ -5,7 +5,6 @@ import { DoubanItem } from '@/lib/types';
 
 export const runtime = 'edge';
 
-const DEFAULT_TMDB_API_KEY = '45bf9a17a758ffdaf0193182c8f42625';
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const TMDB_DISCOVER_TIMEOUT_MS = 10000;
@@ -213,8 +212,7 @@ export async function GET(request: Request) {
 
   const apiKey =
     process.env.TMDB_API_KEY ||
-    process.env.NEXT_PUBLIC_TMDB_API_KEY ||
-    DEFAULT_TMDB_API_KEY;
+    process.env.NEXT_PUBLIC_TMDB_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json(
