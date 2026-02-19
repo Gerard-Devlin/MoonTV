@@ -153,14 +153,16 @@ function PlayPageClient() {
   // 跳过检查的时间间隔控制
   const lastSkipCheckRef = useRef(0);
 
-  // 去广告开关（从 localStorage 继承，默认 true）
-  const [blockAdEnabled, setBlockAdEnabled] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const v = localStorage.getItem('enable_blockad');
-      if (v !== null) return v === 'true';
+  // 去广告开关（每次刷新页面默认开启）
+  const [blockAdEnabled, setBlockAdEnabled] = useState<boolean>(true);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem('enable_blockad', 'true');
+    } catch (_) {
+      // ignore
     }
-    return true;
-  });
+  }, []);
   const blockAdEnabledRef = useRef(blockAdEnabled);
   useEffect(() => {
     blockAdEnabledRef.current = blockAdEnabled;
@@ -312,9 +314,7 @@ function PlayPageClient() {
 
   const [currentDanmakuSelection, setCurrentDanmakuSelection] =
     useState<DanmakuSelection | null>(null);
-  const [danmakuLoading, setDanmakuLoading] = useState(false);
-  const [danmakuCount, setDanmakuCount] = useState(0);
-  const [danmakuOriginalCount, setDanmakuOriginalCount] = useState(0);
+  const [, setDanmakuLoading] = useState(false);
 
   const danmakuPluginRef = useRef<any>(null);
   const danmakuSettingsRef = useRef<DanmakuSettings>(danmakuSettings);
@@ -2292,8 +2292,6 @@ function PlayPageClient() {
 
         applyDanmakuToPlayer(processed);
 
-        setDanmakuCount(processed.length);
-        setDanmakuOriginalCount(originalCount);
         setCurrentDanmakuSelection({
           ...selection,
           danmakuCount: processed.length,
@@ -2301,8 +2299,6 @@ function PlayPageClient() {
         });
       } catch (error) {
         console.error('Load danmaku failed:', error);
-        setDanmakuCount(0);
-        setDanmakuOriginalCount(0);
       } finally {
         setDanmakuLoading(false);
         loadingDanmakuEpisodeIdRef.current = null;
@@ -2482,8 +2478,6 @@ function PlayPageClient() {
         const { processed, originalCount } = normalizeDanmakuData(formatted);
         applyDanmakuToPlayer(processed);
 
-        setDanmakuCount(processed.length);
-        setDanmakuOriginalCount(originalCount);
         setCurrentDanmakuSelection((prev) =>
           prev
             ? {
@@ -2550,8 +2544,6 @@ function PlayPageClient() {
       artPlayerRef.current.poster = videoCover;
       if (danmakuPluginRef.current) {
         danmakuPluginRef.current.reset();
-        setDanmakuCount(0);
-        setDanmakuOriginalCount(0);
       }
       if (artPlayerRef.current?.video) {
         ensureVideoSource(
@@ -3443,17 +3435,6 @@ function PlayPageClient() {
                     </div>
                   )}
 
-                  {danmakuLoading && !isVideoLoading && (
-                    <div className='pointer-events-none absolute inset-0 z-[450] flex items-center justify-center rounded-xl bg-black/45 backdrop-blur-sm'>
-                      <div className='rounded-lg border border-white/20 bg-black/60 px-4 py-2 text-center text-sm text-white'>
-                        {danmakuCount > 0
-                          ? danmakuOriginalCount > 0
-                            ? `已加载 ${danmakuCount} 条弹幕（原始 ${danmakuOriginalCount} 条）`
-                            : `已加载 ${danmakuCount} 条弹幕`
-                          : '加载弹幕中...'}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
