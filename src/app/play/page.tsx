@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Film,
   Heart,
@@ -76,6 +78,7 @@ import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 import DanmakuFilterSettings from '@/components/DanmakuFilterSettings';
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
+import TmdbDetailModal from '@/components/TmdbDetailModal';
 
 // 扩展 HTMLVideoElement 类型以支持 hls 属性
 declare global {
@@ -108,6 +111,16 @@ interface TmdbPlayDetail {
     character: string;
     profile?: string;
   }>;
+  recommendations?: Array<{
+    id: number;
+    mediaType: 'movie' | 'tv';
+    title: string;
+    poster: string;
+    backdrop: string;
+    year: string;
+    score: string;
+    voteCount: number;
+  }>;
   trailerUrl: string;
 }
 
@@ -126,6 +139,26 @@ function PlayPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SearchResult | null>(null);
   const [tmdbDetail, setTmdbDetail] = useState<TmdbPlayDetail | null>(null);
+  const recommendedRailRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollRecommendedLeft, setCanScrollRecommendedLeft] =
+    useState(false);
+  const [canScrollRecommendedRight, setCanScrollRecommendedRight] =
+    useState(false);
+  const [recommendedDetailOpen, setRecommendedDetailOpen] = useState(false);
+  const [recommendedDetailLoading, setRecommendedDetailLoading] =
+    useState(false);
+  const [recommendedDetailError, setRecommendedDetailError] = useState<
+    string | null
+  >(null);
+  const [recommendedDetailData, setRecommendedDetailData] =
+    useState<TmdbPlayDetail | null>(null);
+  const [recommendedDetailTarget, setRecommendedDetailTarget] = useState<{
+    id: number;
+    mediaType: 'movie' | 'tv';
+    title: string;
+    year?: string;
+  } | null>(null);
+  const recommendedDetailRequestIdRef = useRef(0);
 
   // 收藏状态
   const [favorited, setFavorited] = useState(false);
@@ -3669,6 +3702,51 @@ function PlayPageClient() {
     };
   }, []);
 
+  const updateRecommendedScrollState = useCallback(() => {
+    const rail = recommendedRailRef.current;
+    if (!rail) {
+      setCanScrollRecommendedLeft(false);
+      setCanScrollRecommendedRight(false);
+      return;
+    }
+    setCanScrollRecommendedLeft(rail.scrollLeft > 10);
+    const remaining = rail.scrollWidth - rail.clientWidth - rail.scrollLeft;
+    setCanScrollRecommendedRight(remaining > 10);
+  }, []);
+
+  const scrollRecommendedLeft = useCallback(() => {
+    const rail = recommendedRailRef.current;
+    if (!rail) return;
+    const distance = Math.max(Math.floor(rail.clientWidth * 0.72), 280);
+    rail.scrollBy({ left: -distance, behavior: 'smooth' });
+  }, []);
+
+  const scrollRecommendedRight = useCallback(() => {
+    const rail = recommendedRailRef.current;
+    if (!rail) return;
+    const distance = Math.max(Math.floor(rail.clientWidth * 0.72), 280);
+    rail.scrollBy({ left: distance, behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      updateRecommendedScrollState();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    tmdbDetail?.id,
+    tmdbDetail?.recommendations?.length,
+    updateRecommendedScrollState,
+  ]);
+
+  useEffect(() => {
+    const handleResize = () => updateRecommendedScrollState();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [updateRecommendedScrollState]);
+
   const LoadingIcon =
     loadingStage === 'preferring'
       ? Zap
@@ -3777,7 +3855,87 @@ function PlayPageClient() {
       : detail?.type_name || '';
   const displayGenres = tmdbDetail?.genres || [];
   const displayCast = tmdbDetail?.cast || [];
+  const displayRecommendations =
+    (tmdbDetail?.recommendations || []).filter(
+      (item) =>
+        !(
+          item.id === tmdbDetail?.id &&
+          item.mediaType === tmdbDetail?.mediaType
+        )
+    ) || [];
   const playBackground = tmdbDetail?.backdrop || tmdbDetail?.poster || '';
+  const buildRecommendedPlayUrl = (item: {
+    title: string;
+    mediaType: 'movie' | 'tv';
+    year?: string;
+  }): string => {
+    const params = new URLSearchParams({
+      title: item.title,
+      stype: item.mediaType,
+      stitle: item.title,
+    });
+    if (item.year) {
+      params.set('year', item.year);
+    }
+    return `/play?${params.toString()}`;
+  };
+  const closeRecommendedDetailModal = () => {
+    recommendedDetailRequestIdRef.current += 1;
+    setRecommendedDetailOpen(false);
+    setRecommendedDetailLoading(false);
+    setRecommendedDetailError(null);
+    setRecommendedDetailData(null);
+    setRecommendedDetailTarget(null);
+  };
+  const openRecommendedDetailModal = async (item: {
+    id: number;
+    mediaType: 'movie' | 'tv';
+    title: string;
+    year?: string;
+  }) => {
+    const requestId = ++recommendedDetailRequestIdRef.current;
+    setRecommendedDetailTarget(item);
+    setRecommendedDetailOpen(true);
+    setRecommendedDetailLoading(true);
+    setRecommendedDetailError(null);
+    setRecommendedDetailData(null);
+
+    const params = new URLSearchParams({
+      id: String(item.id),
+      mediaType: item.mediaType,
+    });
+    if (item.year) {
+      params.set('year', item.year);
+    }
+
+    const resolved = await fetchTmdbDetailByParams(params);
+    if (recommendedDetailRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    if (!resolved) {
+      setRecommendedDetailError('详情加载失败，请稍后重试');
+      setRecommendedDetailLoading(false);
+      return;
+    }
+
+    setRecommendedDetailData(resolved);
+    setRecommendedDetailLoading(false);
+  };
+  const retryOpenRecommendedDetailModal = () => {
+    if (!recommendedDetailTarget) return;
+    void openRecommendedDetailModal(recommendedDetailTarget);
+  };
+  const handleRecommendedPlayFromDetail = () => {
+    const playTarget = recommendedDetailData || recommendedDetailTarget;
+    if (!playTarget?.title || !playTarget?.mediaType) return;
+    const targetUrl = buildRecommendedPlayUrl({
+      title: playTarget.title,
+      mediaType: playTarget.mediaType,
+      year: playTarget.year || '',
+    });
+    window.location.assign(targetUrl);
+  };
 
   return (
     <PageLayout activePath='/play' disableMobileTopPadding>
@@ -4070,6 +4228,87 @@ function PlayPageClient() {
                     </div>
                   </div>
                 ) : null}
+
+                {displayRecommendations.length > 0 ? (
+                  <section className='mt-4 space-y-3'>
+                    <h2 className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
+                      相关推荐
+                    </h2>
+                    <div className='relative'>
+                      <div
+                        ref={recommendedRailRef}
+                        onScroll={updateRecommendedScrollState}
+                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth'
+                      >
+                        {displayRecommendations.slice(0, 18).map((item) => (
+                          <button
+                            type='button'
+                            key={`play-recommend-${item.mediaType}-${item.id}`}
+                            onClick={() => {
+                              void openRecommendedDetailModal({
+                                id: item.id,
+                                mediaType: item.mediaType,
+                                title: item.title,
+                                year: item.year,
+                              });
+                            }}
+                            className='group w-[132px] flex-shrink-0 text-left'
+                          >
+                            <div className='relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-black/20'>
+                              {item.poster ? (
+                                <img
+                                  src={processImageUrl(item.poster)}
+                                  alt={item.title}
+                                  className='h-full w-full object-cover transition-transform duration-300 group-hover:scale-105'
+                                />
+                              ) : (
+                                <div className='flex h-full w-full items-center justify-center text-[11px] text-gray-300/80'>
+                                  暂无海报
+                                </div>
+                              )}
+                              {item.score ? (
+                                <div className='absolute bottom-2 right-2 inline-flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 backdrop-blur'>
+                                  <Star size={10} fill='currentColor' />
+                                  {item.score}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className='mt-2 space-y-1'>
+                              <p className='line-clamp-2 text-xs font-medium text-gray-900 dark:text-gray-100'>
+                                {item.title}
+                              </p>
+                              <p className='text-[11px] text-gray-600 dark:text-gray-400'>
+                                {item.year || '未知年份'}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type='button'
+                        onClick={scrollRecommendedLeft}
+                        className={`absolute left-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
+                          canScrollRecommendedLeft ? 'opacity-100' : 'opacity-60'
+                        }`}
+                        aria-label='向左查看更多推荐'
+                        title='向左查看更多'
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                      <button
+                        type='button'
+                        onClick={scrollRecommendedRight}
+                        className={`absolute right-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
+                          canScrollRecommendedRight ? 'opacity-100' : 'opacity-60'
+                        }`}
+                        aria-label='向右查看更多推荐'
+                        title='向右查看更多'
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
               </div>
             </div>
 
@@ -4094,6 +4333,18 @@ function PlayPageClient() {
           </div>
         </div>
       </div>
+
+      <TmdbDetailModal
+        open={recommendedDetailOpen}
+        loading={recommendedDetailLoading}
+        error={recommendedDetailError}
+        detail={recommendedDetailData}
+        titleLogo={recommendedDetailData?.logo}
+        onClose={closeRecommendedDetailModal}
+        onRetry={retryOpenRecommendedDetailModal}
+        onPlay={handleRecommendedPlayFromDetail}
+        playLabel='立即播放'
+      />
 
       <DanmakuFilterSettings
         isOpen={showDanmakuFilterSettings}

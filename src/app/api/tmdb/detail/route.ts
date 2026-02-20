@@ -36,6 +36,19 @@ interface TmdbDetailRawVideo {
   iso_639_1?: string | null;
 }
 
+interface TmdbRecommendationRawItem {
+  id?: number;
+  media_type?: 'movie' | 'tv' | string;
+  title?: string;
+  name?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  vote_average?: number;
+  vote_count?: number;
+  release_date?: string;
+  first_air_date?: string;
+}
+
 interface TmdbDetailRawResponse {
   id?: number;
   title?: string;
@@ -75,6 +88,9 @@ interface TmdbDetailRawResponse {
       rating?: string;
     }>;
   };
+  recommendations?: {
+    results?: TmdbRecommendationRawItem[];
+  };
 }
 
 interface TmdbSearchResponse {
@@ -113,6 +129,16 @@ interface TmdbDetailResponse {
     name: string;
     character: string;
     profile?: string;
+  }>;
+  recommendations: Array<{
+    id: number;
+    mediaType: TmdbMediaType;
+    title: string;
+    poster: string;
+    backdrop: string;
+    year: string;
+    score: string;
+    voteCount: number;
   }>;
   trailerUrl: string;
 }
@@ -562,8 +588,8 @@ async function fetchTmdbDetailRaw(
 ): Promise<TmdbDetailRawResponse | null> {
   const appendToResponse =
     mediaType === 'movie'
-      ? 'credits,videos,release_dates,images'
-      : 'credits,videos,content_ratings,images';
+      ? 'credits,videos,release_dates,images,recommendations'
+      : 'credits,videos,content_ratings,images,recommendations';
 
   const params = new URLSearchParams({
     api_key: apiKey,
@@ -621,6 +647,47 @@ function mapRawDetailToResponse(
       : (raw.episode_run_time?.[0] ?? null);
 
   const logoPath = selectBestLogoPath(raw.images?.logos || []);
+  const recommendations = (raw.recommendations?.results || [])
+    .slice(0, 20)
+    .map((item) => {
+      const id = Number(item.id);
+      if (!Number.isInteger(id) || id <= 0) return null;
+
+      const title = (item.title || item.name || '').trim();
+      if (!title) return null;
+
+      const recommendationMediaType =
+        item.media_type === 'movie' || item.media_type === 'tv'
+          ? item.media_type
+          : input.mediaType;
+
+      return {
+        id,
+        mediaType: recommendationMediaType,
+        title,
+        poster:
+          toImageUrl(item.poster_path, 'w500') ||
+          toImageUrl(item.backdrop_path, 'w500'),
+        backdrop: toImageUrl(item.backdrop_path, 'original'),
+        year: toYear(item.release_date || item.first_air_date),
+        score: toScore(item.vote_average),
+        voteCount: item.vote_count || 0,
+      };
+    })
+    .filter(
+      (
+        item
+      ): item is {
+        id: number;
+        mediaType: TmdbMediaType;
+        title: string;
+        poster: string;
+        backdrop: string;
+        year: string;
+        score: string;
+        voteCount: number;
+      } => Boolean(item)
+    );
 
   return {
     id: raw.id || input.id,
@@ -644,6 +711,7 @@ function mapRawDetailToResponse(
     popularity:
       typeof raw.popularity === 'number' ? Math.round(raw.popularity) : null,
     cast,
+    recommendations,
     trailerUrl: pickTrailerUrlFromRaw(raw),
   };
 }
