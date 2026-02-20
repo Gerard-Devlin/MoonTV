@@ -234,6 +234,7 @@ function PlayPageClient() {
   const currentIdRef = useRef(currentId);
   const videoTitleRef = useRef(videoTitle);
   const videoYearRef = useRef(videoYear);
+  const videoCoverRef = useRef(videoCover);
   const detailRef = useRef<SearchResult | null>(detail);
   const currentEpisodeIndexRef = useRef(currentEpisodeIndex);
 
@@ -245,6 +246,7 @@ function PlayPageClient() {
     currentEpisodeIndexRef.current = currentEpisodeIndex;
     videoTitleRef.current = videoTitle;
     videoYearRef.current = videoYear;
+    videoCoverRef.current = videoCover;
   }, [
     currentSource,
     currentId,
@@ -252,6 +254,7 @@ function PlayPageClient() {
     currentEpisodeIndex,
     videoTitle,
     videoYear,
+    videoCover,
   ]);
 
   // 视频播放地址
@@ -335,6 +338,8 @@ function PlayPageClient() {
 
   const artPlayerRef = useRef<any>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
+  const castSdkLoaderRef = useRef<Promise<boolean> | null>(null);
+  const castContextReadyRef = useRef(false);
   const tmdbDetailCacheRef = useRef<Map<string, TmdbPlayDetail | null>>(
     new Map()
   );
@@ -1088,6 +1093,191 @@ function PlayPageClient() {
       video.removeAttribute('disableRemotePlayback');
     }
   };
+
+  const getCastMimeType = useCallback((url: string) => {
+    const cleanUrl = url.split('#')[0].split('?')[0].toLowerCase();
+    if (cleanUrl.endsWith('.m3u8')) return 'application/x-mpegURL';
+    if (cleanUrl.endsWith('.mpd')) return 'application/dash+xml';
+    if (cleanUrl.endsWith('.webm')) return 'video/webm';
+    return 'video/mp4';
+  }, []);
+
+  const ensureGoogleCastSdk = useCallback(async () => {
+    if (typeof window === 'undefined') return false;
+    const globalWindow = window as any;
+    if (globalWindow.cast?.framework && globalWindow.chrome?.cast) {
+      return true;
+    }
+    if (castSdkLoaderRef.current) {
+      return castSdkLoaderRef.current;
+    }
+
+    castSdkLoaderRef.current = new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(ok);
+      };
+
+      const previousHandler = globalWindow.__onGCastApiAvailable;
+      globalWindow.__onGCastApiAvailable = (available: boolean, ...args: any[]) => {
+        if (typeof previousHandler === 'function') {
+          previousHandler(available, ...args);
+        }
+        finish(Boolean(available));
+      };
+
+      const existingScript = document.querySelector(
+        'script[data-moon-tv-cast-sdk="1"]'
+      ) as HTMLScriptElement | null;
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.src =
+          'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+        script.async = true;
+        script.defer = true;
+        script.setAttribute('data-moon-tv-cast-sdk', '1');
+        script.onerror = () => finish(false);
+        document.head.appendChild(script);
+      }
+
+      window.setTimeout(() => {
+        finish(Boolean(globalWindow.cast?.framework && globalWindow.chrome?.cast));
+      }, 6000);
+    });
+
+    const loaded = await castSdkLoaderRef.current;
+    if (!loaded) {
+      castSdkLoaderRef.current = null;
+    }
+    return loaded;
+  }, []);
+
+  const startGoogleCast = useCallback(
+    async (url: string, currentTime: number) => {
+      if (!url) return false;
+      const sdkReady = await ensureGoogleCastSdk();
+      if (!sdkReady || typeof window === 'undefined') return false;
+
+      const globalWindow = window as any;
+      const castFramework = globalWindow.cast?.framework;
+      const chromeCast = globalWindow.chrome?.cast;
+      if (!castFramework || !chromeCast) return false;
+
+      try {
+        const context = castFramework.CastContext.getInstance();
+        if (!castContextReadyRef.current) {
+          context.setOptions({
+            receiverApplicationId:
+              chromeCast.media.DEFAULT_MEDIA_RECEIVER_APP_ID || 'CC1AD845',
+            autoJoinPolicy: chromeCast.AutoJoinPolicy.ORIGIN_SCOPED,
+          });
+          castContextReadyRef.current = true;
+        }
+
+        let session = context.getCurrentSession();
+        if (!session) {
+          await context.requestSession();
+          session = context.getCurrentSession();
+        }
+        if (!session) return false;
+
+        const mediaInfo = new chromeCast.media.MediaInfo(url, getCastMimeType(url));
+        const metadata = new chromeCast.media.GenericMediaMetadata();
+        metadata.title = videoTitleRef.current
+          ? `${videoTitleRef.current} - 第${currentEpisodeIndexRef.current + 1}集`
+          : `第${currentEpisodeIndexRef.current + 1}集`;
+        if (videoCoverRef.current) {
+          metadata.images = [new chromeCast.Image(videoCoverRef.current)];
+        }
+        mediaInfo.metadata = metadata;
+
+        const request = new chromeCast.media.LoadRequest(mediaInfo);
+        request.autoplay = true;
+        if (Number.isFinite(currentTime) && currentTime > 0) {
+          request.currentTime = currentTime;
+        }
+
+        await session.loadMedia(request);
+        return true;
+      } catch (err) {
+        console.warn('Google Cast 投屏失败:', err);
+        return false;
+      }
+    },
+    [ensureGoogleCastSdk, getCastMimeType]
+  );
+
+  const openRemotePlaybackPicker = useCallback(
+    async (video: HTMLVideoElement) => {
+      const remote = (video as any).remote;
+      if (!remote || typeof remote.prompt !== 'function') {
+        return false;
+      }
+
+      try {
+        await remote.prompt();
+        return true;
+      } catch (err) {
+        console.warn('Remote Playback 调起失败:', err);
+        return false;
+      }
+    },
+    []
+  );
+
+  const openAirPlayPicker = useCallback((video: HTMLVideoElement) => {
+    const webkitVideo = video as any;
+    if (typeof webkitVideo.webkitShowPlaybackTargetPicker !== 'function') {
+      return false;
+    }
+    try {
+      webkitVideo.webkitShowPlaybackTargetPicker();
+      return true;
+    } catch (err) {
+      console.warn('AirPlay 调起失败:', err);
+      return false;
+    }
+  }, []);
+
+  const handleCastClick = useCallback(async () => {
+    const player = artPlayerRef.current;
+    const video = player?.video as HTMLVideoElement | undefined;
+    if (!player || !video) return;
+
+    const url = video.currentSrc || video.src || '';
+    if (!url) {
+      player.notice.show = '当前视频未就绪，暂时无法投屏';
+      return;
+    }
+
+    const currentTime = player.currentTime || 0;
+    if (await openRemotePlaybackPicker(video)) {
+      player.notice.show = '已打开投屏设备列表';
+      return;
+    }
+
+    if (await startGoogleCast(url, currentTime)) {
+      player.notice.show = '已连接投屏设备';
+      player.pause();
+      return;
+    }
+
+    if (openAirPlayPicker(video)) {
+      player.notice.show = '已打开 AirPlay 设备列表';
+      return;
+    }
+
+    player.notice.show = '当前浏览器不支持投屏';
+  }, [openAirPlayPicker, openRemotePlaybackPicker, startGoogleCast]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const ua = navigator.userAgent.toLowerCase();
+    if (!/(chrome|crios|edg|android)/.test(ua)) return;
+    void ensureGoogleCastSdk();
+  }, [ensureGoogleCastSdk]);
 
   // 去广告相关函数
   function filterAdsFromM3U8(m3u8Content: string): string {
@@ -2894,6 +3084,15 @@ function PlayPageClient() {
         ],
         // 控制栏配置
         controls: [
+          {
+            position: 'right',
+            index: 12,
+            html: '<i class="art-icon flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.92-11-11-11zm18-7H5c-1.1 0-2 .9-2 2v3h2V5h16v14h-3v2h3c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg></i>',
+            tooltip: '投屏',
+            click: function () {
+              void handleCastClick();
+            },
+          },
           {
             position: 'left',
             index: 13,
