@@ -2796,7 +2796,7 @@ function PlayPageClient() {
         mutex: true,
         playsInline: true,
         autoPlayback: false,
-        airplay: true,
+        airplay: false,
         theme: '#557efc',
         lang: 'zh-cn',
         hotkey: false,
