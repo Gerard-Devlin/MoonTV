@@ -3106,6 +3106,193 @@ function PlayPageClient() {
       });
 
       const playerInstance = artPlayerRef.current;
+      const setupTouchLongPressPlayback = () => {
+        const hostElement =
+          (playerInstance.template?.$player as HTMLElement | undefined) ||
+          artRef.current;
+        if (!hostElement) {
+          return () => undefined;
+        }
+
+        const LONG_PRESS_MS = 320;
+        const MOVE_TOLERANCE = 18;
+        let pressTimer: number | null = null;
+        let pressing = false;
+        let boosted = false;
+        let activePointerId: number | null = null;
+        let activeTouchId: number | null = null;
+        let startX = 0;
+        let startY = 0;
+        let previousRate = 1;
+
+        const shouldIgnoreTarget = (target: EventTarget | null) => {
+          if (!(target instanceof HTMLElement)) {
+            return false;
+          }
+          return Boolean(
+            target.closest(
+              '.art-controls, .art-setting, .art-contextmenus, .art-layer-notice, .art-selector-list, .art-volume'
+            )
+          );
+        };
+
+        const clearPressTimer = () => {
+          if (pressTimer !== null) {
+            window.clearTimeout(pressTimer);
+            pressTimer = null;
+          }
+        };
+
+        const startBoost = () => {
+          const currentPlayer = artPlayerRef.current;
+          if (!currentPlayer || boosted) return;
+          previousRate = currentPlayer.playbackRate || 1;
+          currentPlayer.playbackRate = 2;
+          currentPlayer.notice.show = '长按倍速 2.0x';
+          boosted = true;
+        };
+
+        const stopBoost = () => {
+          const currentPlayer = artPlayerRef.current;
+          if (!boosted || !currentPlayer) {
+            boosted = false;
+            return;
+          }
+          currentPlayer.playbackRate = previousRate;
+          currentPlayer.notice.show = '';
+          boosted = false;
+        };
+
+        const scheduleLongPress = () => {
+          clearPressTimer();
+          pressTimer = window.setTimeout(() => {
+            pressTimer = null;
+            if (!pressing) return;
+            startBoost();
+          }, LONG_PRESS_MS);
+        };
+
+        const exceedsTolerance = (x: number, y: number) => {
+          return (
+            Math.abs(x - startX) > MOVE_TOLERANCE ||
+            Math.abs(y - startY) > MOVE_TOLERANCE
+          );
+        };
+
+        const endPress = () => {
+          clearPressTimer();
+          pressing = false;
+          activePointerId = null;
+          activeTouchId = null;
+          stopBoost();
+        };
+
+        const onPointerDown = (event: PointerEvent) => {
+          if (event.pointerType !== 'touch') return;
+          if (shouldIgnoreTarget(event.target)) return;
+          pressing = true;
+          activePointerId = event.pointerId;
+          startX = event.clientX;
+          startY = event.clientY;
+          scheduleLongPress();
+        };
+
+        const onPointerMove = (event: PointerEvent) => {
+          if (!pressing || activePointerId !== event.pointerId) return;
+          if (exceedsTolerance(event.clientX, event.clientY)) {
+            endPress();
+          }
+        };
+
+        const onPointerUp = (event: PointerEvent) => {
+          if (activePointerId !== event.pointerId) return;
+          endPress();
+        };
+
+        const onPointerCancel = (event: PointerEvent) => {
+          if (activePointerId !== event.pointerId) return;
+          endPress();
+        };
+
+        const onTouchStart = (event: TouchEvent) => {
+          if (event.changedTouches.length === 0) return;
+          if (shouldIgnoreTarget(event.target)) return;
+          const touch = event.changedTouches[0];
+          pressing = true;
+          activeTouchId = touch.identifier;
+          startX = touch.clientX;
+          startY = touch.clientY;
+          scheduleLongPress();
+        };
+
+        const onTouchMove = (event: TouchEvent) => {
+          if (!pressing || activeTouchId === null) return;
+          const touch = Array.from(event.changedTouches).find(
+            (item) => item.identifier === activeTouchId
+          );
+          if (!touch) return;
+          if (exceedsTolerance(touch.clientX, touch.clientY)) {
+            endPress();
+          }
+        };
+
+        const onTouchEnd = (event: TouchEvent) => {
+          if (activeTouchId === null) return;
+          const touch = Array.from(event.changedTouches).find(
+            (item) => item.identifier === activeTouchId
+          );
+          if (!touch) return;
+          endPress();
+        };
+
+        const supportsPointer =
+          typeof window !== 'undefined' && 'PointerEvent' in window;
+
+        if (supportsPointer) {
+          hostElement.addEventListener('pointerdown', onPointerDown, {
+            passive: true,
+          });
+          hostElement.addEventListener('pointermove', onPointerMove, {
+            passive: true,
+          });
+          hostElement.addEventListener('pointerup', onPointerUp, {
+            passive: true,
+          });
+          hostElement.addEventListener('pointercancel', onPointerCancel, {
+            passive: true,
+          });
+        } else {
+          hostElement.addEventListener('touchstart', onTouchStart, {
+            passive: true,
+          });
+          hostElement.addEventListener('touchmove', onTouchMove, {
+            passive: true,
+          });
+          hostElement.addEventListener('touchend', onTouchEnd, {
+            passive: true,
+          });
+          hostElement.addEventListener('touchcancel', onTouchEnd, {
+            passive: true,
+          });
+        }
+
+        return () => {
+          if (supportsPointer) {
+            hostElement.removeEventListener('pointerdown', onPointerDown);
+            hostElement.removeEventListener('pointermove', onPointerMove);
+            hostElement.removeEventListener('pointerup', onPointerUp);
+            hostElement.removeEventListener('pointercancel', onPointerCancel);
+          } else {
+            hostElement.removeEventListener('touchstart', onTouchStart);
+            hostElement.removeEventListener('touchmove', onTouchMove);
+            hostElement.removeEventListener('touchend', onTouchEnd);
+            hostElement.removeEventListener('touchcancel', onTouchEnd);
+          }
+          endPress();
+        };
+      };
+      const cleanupTouchLongPress = setupTouchLongPressPlayback();
+
       const syncOrientationWithFullscreen = async () => {
         if (!playerInstance) return;
         const videoElement = playerInstance.video as any;
@@ -3159,6 +3346,7 @@ function PlayPageClient() {
       (playerInstance as any).__cleanupFullscreenOrientation = () => {
         if (orientationCleanupDone) return;
         orientationCleanupDone = true;
+        cleanupTouchLongPress();
         playerInstance.off('fullscreen', handleFullscreenStateChange);
         playerInstance.off('fullscreenWeb', handleFullscreenStateChange);
         document.removeEventListener(
