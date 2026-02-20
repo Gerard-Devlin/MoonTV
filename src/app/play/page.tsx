@@ -139,6 +139,9 @@ function PlayPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SearchResult | null>(null);
   const [tmdbDetail, setTmdbDetail] = useState<TmdbPlayDetail | null>(null);
+  const castRailRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollCastLeft, setCanScrollCastLeft] = useState(false);
+  const [canScrollCastRight, setCanScrollCastRight] = useState(false);
   const recommendedRailRef = useRef<HTMLDivElement | null>(null);
   const [canScrollRecommendedLeft, setCanScrollRecommendedLeft] =
     useState(false);
@@ -3702,6 +3705,32 @@ function PlayPageClient() {
     };
   }, []);
 
+  const updateCastScrollState = useCallback(() => {
+    const rail = castRailRef.current;
+    if (!rail) {
+      setCanScrollCastLeft(false);
+      setCanScrollCastRight(false);
+      return;
+    }
+    setCanScrollCastLeft(rail.scrollLeft > 10);
+    const remaining = rail.scrollWidth - rail.clientWidth - rail.scrollLeft;
+    setCanScrollCastRight(remaining > 10);
+  }, []);
+
+  const scrollCastLeft = useCallback(() => {
+    const rail = castRailRef.current;
+    if (!rail) return;
+    const distance = Math.max(Math.floor(rail.clientWidth * 0.72), 280);
+    rail.scrollBy({ left: -distance, behavior: 'smooth' });
+  }, []);
+
+  const scrollCastRight = useCallback(() => {
+    const rail = castRailRef.current;
+    if (!rail) return;
+    const distance = Math.max(Math.floor(rail.clientWidth * 0.72), 280);
+    rail.scrollBy({ left: distance, behavior: 'smooth' });
+  }, []);
+
   const updateRecommendedScrollState = useCallback(() => {
     const rail = recommendedRailRef.current;
     if (!rail) {
@@ -3730,6 +3759,13 @@ function PlayPageClient() {
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
+      updateCastScrollState();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tmdbDetail?.id, tmdbDetail?.cast?.length, updateCastScrollState]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
       updateRecommendedScrollState();
     });
     return () => cancelAnimationFrame(frame);
@@ -3740,12 +3776,15 @@ function PlayPageClient() {
   ]);
 
   useEffect(() => {
-    const handleResize = () => updateRecommendedScrollState();
+    const handleResize = () => {
+      updateCastScrollState();
+      updateRecommendedScrollState();
+    };
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [updateRecommendedScrollState]);
+  }, [updateCastScrollState, updateRecommendedScrollState]);
 
   const LoadingIcon =
     loadingStage === 'preferring'
@@ -3791,24 +3830,22 @@ function PlayPageClient() {
   if (error) {
     return (
       <PageLayout activePath='/play'>
-        <div className='flex min-h-screen items-center justify-center bg-transparent px-6 py-12'>
-          <div className='w-full max-w-xs rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70 sm:p-8'>
-            <div className='flex flex-col gap-6 text-center'>
-              <div className='flex flex-col items-center gap-3'>
-                <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/15'>
-                  <AlertTriangle className='h-10 w-10 text-rose-500' />
+        <div className='fixed inset-0 z-[850] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'>
+          <div className='w-[min(92vw,24rem)] max-w-sm overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/90 p-6 text-zinc-900 shadow-[0_30px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl dark:border-zinc-700/60 dark:bg-zinc-900/85 dark:text-zinc-100'>
+            <div className='space-y-5'>
+              <div className='space-y-3 text-center'>
+                <div className='inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/15 text-rose-500'>
+                  <AlertTriangle className='h-5 w-5' />
                 </div>
-                <div>
-                  <h2 className='text-2xl font-semibold text-slate-900 dark:text-slate-100'>
-                    哎呀，出现了一些问题
-                  </h2>
-                  <p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
-                    播放源暂时不可用或没有匹配结果。
-                  </p>
-                </div>
+                <h2 className='text-xl font-semibold text-zinc-900 dark:text-zinc-100'>
+                  哎呀，出现了一些问题
+                </h2>
+                <p className='text-sm leading-6 text-zinc-600 dark:text-zinc-300'>
+                  播放源暂时不可用或没有匹配结果。
+                </p>
               </div>
 
-              <div className='grid gap-3'>
+              <div className='grid gap-2 sm:grid-cols-2'>
                 <button
                   onClick={() =>
                     videoTitle
@@ -3817,18 +3854,18 @@ function PlayPageClient() {
                         )
                       : router.back()
                   }
-                  className='group inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-700/90 bg-slate-800 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800'
+                  className='group inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-zinc-200/80 bg-white/80 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-white dark:border-zinc-600/70 dark:bg-zinc-800/80 dark:text-zinc-200 dark:hover:bg-zinc-700/90'
                 >
                   {videoTitle ? (
-                    <Search className='h-4 w-4 text-white transition-transform duration-200 group-hover:scale-110' />
+                    <Search className='h-4 w-4 transition-transform duration-200 group-hover:scale-110' />
                   ) : (
-                    <ArrowLeft className='h-4 w-4 text-white transition-transform duration-200 group-hover:-translate-x-0.5' />
+                    <ArrowLeft className='h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5' />
                   )}
                   {videoTitle ? '返回搜索' : '返回上页'}
                 </button>
                 <button
                   onClick={() => window.location.reload()}
-                  className='group inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300'
+                  className='group inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200'
                 >
                   <RefreshCw className='h-4 w-4 transition-transform duration-200 group-hover:rotate-180' />
                   重新尝试
@@ -4123,7 +4160,7 @@ function PlayPageClient() {
                         <img
                           src={processImageUrl(tmdbDetail.logo)}
                           alt={`${displayTitle} logo`}
-                          className='mx-0 h-16 w-auto max-w-full object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)] md:h-20'
+                          className='mx-0 h-20 w-auto max-w-full object-contain object-left drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)] md:h-24 lg:h-28'
                         />
                         <h1 className='sr-only'>{displayTitle}</h1>
                       </>
@@ -4209,24 +4246,71 @@ function PlayPageClient() {
                   </p>
                 )}
                 {displayCast.length > 0 ? (
-                  <div className='mt-4 space-y-2'>
-                    <p className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
+                  <section className='mt-4 space-y-3'>
+                    <h2 className='text-sm font-semibold text-gray-900/90 dark:text-white/90'>
                       主演
-                    </p>
-                    <div className='flex flex-wrap gap-2'>
-                      {displayCast.slice(0, 12).map((item) => (
-                        <button
-                          type='button'
-                          key={`play-cast-${item.id}-${item.name}`}
-                          onClick={() => router.push(`/person/${item.id}`)}
-                          className='rounded-full border border-gray-500/40 bg-white/55 px-2.5 py-1 text-xs text-gray-800/90 backdrop-blur-md transition-colors hover:bg-white/75 dark:border-white/25 dark:bg-slate-900/45 dark:text-white/90 dark:hover:bg-slate-900/65'
-                        >
-                          {item.name}
-                          {item.character ? ` · ${item.character}` : ''}
-                        </button>
-                      ))}
+                    </h2>
+                    <div className='relative'>
+                      <div
+                        ref={castRailRef}
+                        onScroll={updateCastScrollState}
+                        className='-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth'
+                      >
+                        {displayCast.slice(0, 12).map((item) => (
+                          <button
+                            type='button'
+                            key={`play-cast-${item.id}-${item.name}`}
+                            onClick={() => router.push(`/person/${item.id}`)}
+                            className='group w-[132px] flex-shrink-0 text-left'
+                          >
+                            <div className='relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-black/20'>
+                              {item.profile ? (
+                                <img
+                                  src={processImageUrl(item.profile)}
+                                  alt={item.name}
+                                  className='h-full w-full object-cover transition-transform duration-300 group-hover:scale-105'
+                                />
+                              ) : (
+                                <div className='flex h-full w-full items-center justify-center text-gray-300/80'>
+                                  <Users size={20} />
+                                </div>
+                              )}
+                            </div>
+                            <div className='mt-2 space-y-1'>
+                              <p className='line-clamp-1 text-xs font-medium text-gray-900 dark:text-gray-100'>
+                                {item.name}
+                              </p>
+                              <p className='line-clamp-2 text-[11px] text-gray-600 dark:text-gray-400'>
+                                {item.character || '角色未知'}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type='button'
+                        onClick={scrollCastLeft}
+                        className={`absolute left-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
+                          canScrollCastLeft ? 'opacity-100' : 'opacity-60'
+                        }`}
+                        aria-label='向左查看更多演员'
+                        title='向左查看更多'
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                      <button
+                        type='button'
+                        onClick={scrollCastRight}
+                        className={`absolute right-2 top-[99px] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/55 text-white/90 backdrop-blur transition-colors hover:bg-black/70 md:inline-flex ${
+                          canScrollCastRight ? 'opacity-100' : 'opacity-60'
+                        }`}
+                        aria-label='向右查看更多演员'
+                        title='向右查看更多'
+                      >
+                        <ChevronRight size={18} />
+                      </button>
                     </div>
-                  </div>
+                  </section>
                 ) : null}
 
                 {displayRecommendations.length > 0 ? (

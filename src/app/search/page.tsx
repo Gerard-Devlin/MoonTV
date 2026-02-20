@@ -5,7 +5,14 @@ import { Search, Star, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 import {
@@ -114,9 +121,7 @@ function renderHighlightedText(text: string, keyword: string): JSX.Element {
   return (
     <>
       {before}
-      <mark className='rounded bg-white/25 px-0.5 text-white'>
-        {hit}
-      </mark>
+      <mark className='rounded bg-white/25 px-0.5 text-white'>{hit}</mark>
       {after}
     </>
   );
@@ -126,7 +131,10 @@ function getEpisodeCount(item: SearchResult): number {
   if (typeof item.total_episodes === 'number' && item.total_episodes > 0) {
     return item.total_episodes;
   }
-  if (item.source === 'tmdb' && (item.type_name || '').trim().toLowerCase() === 'tv') {
+  if (
+    item.source === 'tmdb' &&
+    (item.type_name || '').trim().toLowerCase() === 'tv'
+  ) {
     return 0;
   }
   return Array.isArray(item.episodes) ? item.episodes.length : 0;
@@ -633,7 +641,10 @@ function SearchPageClient() {
           seasonCount,
           logo: detailData?.logo || '',
           backdrop:
-            detailData?.backdrop || detailData?.poster || activeResult?.poster || '',
+            detailData?.backdrop ||
+            detailData?.poster ||
+            activeResult?.poster ||
+            '',
         });
         setSeasonPickerOpen(true);
         return;
@@ -672,7 +683,10 @@ function SearchPageClient() {
         <PageLayout activePath='/search'>
           <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
             <div className='mb-8'>
-              <form onSubmit={handleSearch} className='mx-auto w-full max-w-[720px]'>
+              <form
+                onSubmit={handleSearch}
+                className='mx-auto w-full max-w-[720px]'
+              >
                 <div ref={searchInputRef} className='relative'>
                   <Search className='absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
                   <input
@@ -909,7 +923,7 @@ function SearchPageClient() {
                         <div className='col-span-full text-center text-gray-500 py-8 dark:text-gray-400'>
                           {personResults.length > 0
                             ? 'No movie/tv results'
-                            : 'No matching results'}
+                            : '无搜索结果'}
                         </div>
                       )}
                   </div>
