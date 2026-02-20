@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any, @next/next/no-img-element */
 'use client';
 
-import { Search, Star, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search, Star, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -91,14 +91,14 @@ function hasSeasonHint(value: string): boolean {
   const text = (value || '').toLowerCase();
   if (!text.trim()) return false;
   return (
-    /第\s*[一二三四五六七八九十百千万\d]+\s*季/.test(text) ||
+    /第\s*[一二三四五六七八九十百千万两\d]+\s*季/.test(text) ||
     /(?:season|series|s)\s*0*\d{1,2}/i.test(text)
   );
 }
 
 function stripSeasonHint(value: string): string {
   return (value || '')
-    .replace(/第\s*[一二三四五六七八九十百千万\d]+\s*季/gi, ' ')
+    .replace(/第\s*[一二三四五六七八九十百千万两\d]+\s*季/gi, ' ')
     .replace(/(?:season|series|s)\s*0*\d{1,2}/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -230,13 +230,14 @@ function SearchPageClient() {
   const [legacySearchResults, setLegacySearchResults] = useState<
     SearchResult[]
   >([]);
+  const [legacyExpanded, setLegacyExpanded] = useState(false);
   const trimmedSearchQuery = searchQuery.trim();
   const shouldShowSuggestionDropdown =
     suggestionOpen &&
     trimmedSearchQuery.length > 0 &&
     (suggestionLoading || hasSuggestionSearched);
 
-  // 鑾峰彇榛樿鑱氬悎璁剧疆锛氬彧璇诲彇鐢ㄦ埛鏈湴璁剧疆锛岄粯璁や负 true
+  // 获取默认聚合设置：只读取用户本地设置，默认值为 true
   const getDefaultAggregate = () => {
     if (typeof window !== 'undefined') {
       const userSetting = localStorage.getItem('defaultAggregateSearch');
@@ -244,7 +245,7 @@ function SearchPageClient() {
         return JSON.parse(userSetting);
       }
     }
-    return true; // 榛樿鍚敤鑱氬悎
+    return true; // 默认启用聚合
   };
 
   const [viewMode, setViewMode] = useState<'agg' | 'all'>(() => {
@@ -385,6 +386,7 @@ function SearchPageClient() {
       setShowResults(false);
       setPersonResults([]);
       setLegacySearchResults([]);
+      setLegacyExpanded(false);
       setSuggestionOpen(false);
     }
   }, [searchParams]);
@@ -392,6 +394,7 @@ function SearchPageClient() {
   const fetchSearchResults = async (query: string) => {
     try {
       setIsLoading(true);
+      setLegacyExpanded(false);
       const trimmedQuery = query.trim();
 
       const [tmdbPayload, legacyPayload] = await Promise.all([
@@ -930,64 +933,76 @@ function SearchPageClient() {
 
                   {legacySearchResults.length > 0 && (
                     <div className='mt-12'>
-                      <div className='mb-4 flex items-center justify-between'>
-                        <h3 className='text-lg font-semibold text-gray-800 dark:text-gray-200'>
+                      <button
+                        type='button'
+                        onClick={() => setLegacyExpanded((prev) => !prev)}
+                        className='mb-4 flex w-full items-center justify-between text-left'
+                      >
+                        <span className='inline-flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200'>
+                          {legacyExpanded ? (
+                            <ChevronDown className='h-4 w-4' />
+                          ) : (
+                            <ChevronRight className='h-4 w-4' />
+                          )}
                           原搜索结果
-                        </h3>
+                        </span>
                         <span className='text-sm text-gray-500 dark:text-gray-400'>
                           {viewMode === 'agg'
                             ? aggregatedLegacyResults.length
                             : legacySearchResults.length}{' '}
-                          条
+                          项
                         </span>
-                      </div>
-                      <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
-                        {viewMode === 'agg'
-                          ? aggregatedLegacyResults.map(([mapKey, group]) => (
-                              <div
-                                key={`legacy-agg-${mapKey}`}
-                                className='w-full'
-                              >
-                                <VideoCard
-                                  from='search'
-                                  items={group}
-                                  query={
-                                    searchQuery.trim() !== group[0].title
-                                      ? searchQuery.trim()
-                                      : ''
-                                  }
-                                />
-                              </div>
-                            ))
-                          : legacySearchResults.map((item, index) => (
-                              <div
-                                key={`legacy-all-${item.source}-${item.id}-${index}`}
-                                className='w-full'
-                              >
-                                <VideoCard
-                                  id={item.id}
-                                  title={
-                                    item.type_name
-                                      ? `${item.title} ${item.type_name}`
-                                      : item.title
-                                  }
-                                  poster={item.poster}
-                                  episodes={getEpisodeCount(item)}
-                                  source={item.source}
-                                  source_name={item.source_name}
-                                  douban_id={item.douban_id?.toString()}
-                                  query={
-                                    searchQuery.trim() !== item.title
-                                      ? searchQuery.trim()
-                                      : ''
-                                  }
-                                  year={item.year}
-                                  from='search'
-                                  type={isTvResult(item) ? 'tv' : 'movie'}
-                                />
-                              </div>
-                            ))}
-                      </div>
+                      </button>
+
+                      {legacyExpanded && (
+                        <div className='justify-start grid grid-cols-2 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
+                          {viewMode === 'agg'
+                            ? aggregatedLegacyResults.map(([mapKey, group]) => (
+                                <div
+                                  key={`legacy-agg-${mapKey}`}
+                                  className='w-full'
+                                >
+                                  <VideoCard
+                                    from='search'
+                                    items={group}
+                                    query={
+                                      searchQuery.trim() !== group[0].title
+                                        ? searchQuery.trim()
+                                        : ''
+                                    }
+                                  />
+                                </div>
+                              ))
+                            : legacySearchResults.map((item, index) => (
+                                <div
+                                  key={`legacy-all-${item.source}-${item.id}-${index}`}
+                                  className='w-full'
+                                >
+                                  <VideoCard
+                                    id={item.id}
+                                    title={
+                                      item.type_name
+                                        ? `${item.title} ${item.type_name}`
+                                        : item.title
+                                    }
+                                    poster={item.poster}
+                                    episodes={getEpisodeCount(item)}
+                                    source={item.source}
+                                    source_name={item.source_name}
+                                    douban_id={item.douban_id?.toString()}
+                                    query={
+                                      searchQuery.trim() !== item.title
+                                        ? searchQuery.trim()
+                                        : ''
+                                    }
+                                    year={item.year}
+                                    from='search'
+                                    type={isTvResult(item) ? 'tv' : 'movie'}
+                                  />
+                                </div>
+                              ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </section>
@@ -1048,7 +1063,7 @@ function SearchPageClient() {
                 <div
                   role='dialog'
                   aria-modal='false'
-                  aria-label='请选择要播放的季'
+                  aria-label='请选择要播放的季数'
                   className='pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-slate-950 text-white shadow-2xl'
                   onClick={(event) => event.stopPropagation()}
                   onPointerDown={(event) => event.stopPropagation()}
@@ -1080,7 +1095,7 @@ function SearchPageClient() {
 
                     <div className='space-y-2 text-center sm:text-left'>
                       <h3 className='text-lg font-semibold sm:pr-10'>
-                        请选择要播放的季
+                        请选择要播放的季数
                       </h3>
                       {seasonPickerData.logo ? (
                         <div className='relative mx-auto mb-1.5 h-14 w-full max-w-[360px] sm:mx-0 sm:h-16'>
