@@ -522,6 +522,45 @@ function PlayPageClient() {
       .replace(/\s+/g, ' ')
       .trim();
 
+  const stripSpecialTokensForQuery = (value: string): string =>
+    (value || '')
+      .replace(
+        /(?:制作)?特辑|特别篇|特别节目|幕后(?:花絮|纪录)?|花絮|纪录片|番外|衍生|先导片|访谈|彩蛋|制作幕后|制作花絮/gi,
+        ' '
+      )
+      .replace(
+        /\b(?:special|featurette|behind\s*the\s*scenes|making\s*of|extra|bonus|interview|documentary)\b/gi,
+        ' '
+      )
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const isLikelySpecialTitle = (value: string): boolean => {
+    const normalized = normalizeCompareText(value);
+    if (!normalized) return false;
+    return [
+      '特辑',
+      '特别篇',
+      '特别节目',
+      '幕后',
+      '花絮',
+      '纪录片',
+      '番外',
+      '衍生',
+      '先导片',
+      '访谈',
+      '彩蛋',
+      'special',
+      'featurette',
+      'behindthescenes',
+      'makingof',
+      'extra',
+      'bonus',
+      'interview',
+      'documentary',
+    ].some((token) => normalized.includes(normalizeCompareText(token)));
+  };
+
   const normalizeQueryText = (value: string): string =>
     (value || '').replace(/\s+/g, ' ').trim();
 
@@ -678,16 +717,34 @@ function PlayPageClient() {
       videoTitleRef.current || '',
       searchTitle || '',
     ];
-    baseTitles.forEach((title) => push(title));
 
     if (mediaType === 'tv') {
+      // 电视剧优先用主标题（去季数/去特辑词）查询，避免命中“第二季制作特辑”这类条目
       baseTitles.forEach((title) => {
-        const stripped = stripSeasonTokensForQuery(title);
-        if (stripped && stripped !== normalizeQueryText(title)) {
-          push(stripped);
+        const strippedSeason = stripSeasonTokensForQuery(title);
+        const strippedCore = stripSpecialTokensForQuery(
+          strippedSeason || title
+        );
+        if (strippedCore) {
+          push(strippedCore);
+        }
+        if (strippedSeason && strippedSeason !== strippedCore) {
+          push(strippedSeason);
         }
       });
     }
+
+    // 兜底再尝试原始标题
+    baseTitles.forEach((title) => {
+      if (!title) return;
+      push(title);
+      if (mediaType === 'tv') {
+        const stripped = stripSpecialTokensForQuery(title);
+        if (stripped && stripped !== normalizeQueryText(title)) {
+          push(stripped);
+        }
+      }
+    });
 
     return candidates;
   };
@@ -759,6 +816,17 @@ function PlayPageClient() {
         mediaType
       ).slice(0, 14);
       const yearCandidates = resolvedYear ? [resolvedYear, ''] : [''];
+      const expectedTvTitle = normalizeCompareText(
+        stripSpecialTokensForQuery(
+          stripSeasonTokensForQuery(
+            sourceDetail?.title || videoTitleRef.current || searchTitle || ''
+          )
+        )
+      );
+      const wantsSpecialTitle = isLikelySpecialTitle(
+        sourceDetail?.title || videoTitleRef.current || searchTitle || ''
+      );
+      let fallbackSpecialResult: TmdbPlayDetail | null = null;
 
       for (const titleCandidate of titleCandidates) {
         for (const yearCandidate of yearCandidates) {
@@ -770,10 +838,35 @@ function PlayPageClient() {
           if (fallbackPoster) params.set('poster', fallbackPoster);
           const result = await fetchTmdbDetailByParams(params);
           if (result) {
+            if (mediaType === 'tv' && !wantsSpecialTitle) {
+              const resultTitle = result.title || '';
+              const resultBase = normalizeCompareText(
+                stripSpecialTokensForQuery(
+                  stripSeasonTokensForQuery(resultTitle)
+                ) || resultTitle
+              );
+              const baseMatched =
+                Boolean(expectedTvTitle) &&
+                Boolean(resultBase) &&
+                (resultBase === expectedTvTitle ||
+                  resultBase.includes(expectedTvTitle) ||
+                  expectedTvTitle.includes(resultBase));
+              if (isLikelySpecialTitle(resultTitle)) {
+                if (baseMatched && !fallbackSpecialResult) {
+                  fallbackSpecialResult = result;
+                }
+                continue;
+              }
+            }
             tmdbDetailCacheRef.current.set(cacheKey, result);
             return result;
           }
         }
+      }
+
+      if (fallbackSpecialResult) {
+        tmdbDetailCacheRef.current.set(cacheKey, fallbackSpecialResult);
+        return fallbackSpecialResult;
       }
 
       tmdbDetailCacheRef.current.set(cacheKey, null);
