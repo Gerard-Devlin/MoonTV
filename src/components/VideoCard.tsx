@@ -144,6 +144,12 @@ interface TmdbDetailRawResponse {
 interface TmdbSearchResultItem {
   id?: number;
   media_type?: string;
+  title?: string;
+  name?: string;
+  original_title?: string;
+  original_name?: string;
+  release_date?: string;
+  first_air_date?: string;
 }
 
 interface TmdbLogoItem {

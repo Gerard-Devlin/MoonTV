@@ -911,7 +911,7 @@ function SearchPageClient() {
                           >
                             <VideoCard
                               id={item.id}
-                              title={item.title + ' ' + item.type_name}
+                              title={item.title}
                               poster={item.poster}
                               episodes={getEpisodeCount(item)}
                               source={item.source}
@@ -987,11 +987,7 @@ function SearchPageClient() {
                                 >
                                   <VideoCard
                                     id={item.id}
-                                    title={
-                                      item.type_name
-                                        ? `${item.title} ${item.type_name}`
-                                        : item.title
-                                    }
+                                    title={item.title}
                                     poster={item.poster}
                                     episodes={getEpisodeCount(item)}
                                     source={item.source}
