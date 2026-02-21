@@ -7,7 +7,7 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 const DETAIL_CACHE_SECONDS = 600;
 const DETAIL_REQUEST_TIMEOUT_MS = 10000;
 const DETAIL_CACHE_MAX_ENTRIES = 300;
-const DETAIL_CACHE_VERSION = 'v2';
+const DETAIL_CACHE_VERSION = 'v3';
 
 type TmdbMediaType = 'movie' | 'tv';
 
@@ -565,13 +565,22 @@ async function resolveTmdbTargetFromTitle(
   const attempts: Array<{
     endpoint: 'movie' | 'tv' | 'multi';
     year?: string;
-  }> = [
-    { endpoint: primaryMediaType, year },
-    { endpoint: primaryMediaType },
-    { endpoint: otherType, year },
-    { endpoint: otherType },
-    { endpoint: 'multi' },
-  ];
+  }> = queryHasSeasonIntent
+    ? [
+        // For season-style queries, first-air year filtering often points to specials.
+        { endpoint: 'tv' },
+        { endpoint: 'tv', year },
+        { endpoint: otherType },
+        { endpoint: otherType, year },
+        { endpoint: 'multi' },
+      ]
+    : [
+        { endpoint: primaryMediaType, year },
+        { endpoint: primaryMediaType },
+        { endpoint: otherType, year },
+        { endpoint: otherType },
+        { endpoint: 'multi' },
+      ];
 
   for (const attempt of attempts) {
     for (const searchQuery of searchQueryVariants) {
