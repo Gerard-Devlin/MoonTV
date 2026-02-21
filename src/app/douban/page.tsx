@@ -16,18 +16,22 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { getDoubanCategories, getDoubanList } from '@/lib/douban.client';
+import { getDoubanList } from '@/lib/douban.client';
 import { DoubanItem, DoubanResult } from '@/lib/types';
 
 import DoubanCardSkeleton from '@/components/DoubanCardSkeleton';
 import DoubanCustomSelector from '@/components/DoubanCustomSelector';
-import DoubanSelector from '@/components/DoubanSelector';
 import PageLayout from '@/components/PageLayout';
 import TmdbHeroBanner from '@/components/TmdbHeroBanner';
 import VideoCard from '@/components/VideoCard';
 
 interface GenreOption {
   id: number;
+  label: string;
+}
+
+interface ShowCountryOption {
+  value: string;
   label: string;
 }
 
@@ -101,14 +105,14 @@ const TV_GENRE_OPTIONS: GenreOption[] = [
 ];
 
 const LANGUAGE_OPTIONS = [
-  { value: '', label: '未选择' },
-  { value: 'zh', label: '中文' },
-  { value: 'en', label: '英语' },
-  { value: 'ja', label: '日语' },
-  { value: 'ko', label: '韩语' },
-  { value: 'fr', label: '法语' },
-  { value: 'de', label: '德语' },
-  { value: 'es', label: '西语' },
+  { value: '', label: '\u672a\u9009\u62e9' },
+  { value: 'zh', label: '\u4e2d\u6587' },
+  { value: 'en', label: '\u82f1\u8bed' },
+  { value: 'ja', label: '\u65e5\u8bed' },
+  { value: 'ko', label: '\u97e9\u8bed' },
+  { value: 'fr', label: '\u6cd5\u8bed' },
+  { value: 'de', label: '\u5fb7\u8bed' },
+  { value: 'es', label: '\u897f\u8bed' },
 ];
 
 const DEFAULT_FILTERS: FilterState = {
@@ -133,10 +137,10 @@ function normalizeType(
 }
 
 function getPageTitle(type: 'movie' | 'tv' | 'show' | 'custom'): string {
-  if (type === 'tv') return '剧集';
-  if (type === 'show') return '综艺';
-  if (type === 'custom') return '自定义';
-  return '电影';
+  if (type === 'tv') return '\u5267\u96c6';
+  if (type === 'show') return '\u7efc\u827a';
+  if (type === 'custom') return '\u81ea\u5b9a\u4e49';
+  return '\u7535\u5f71';
 }
 
 function parseNumberLike(value: string): string {
@@ -150,12 +154,25 @@ function parseNumberLike(value: string): string {
 const RANGE_INPUT_CLASS =
   'pointer-events-none absolute inset-0 h-8 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#8C97A8] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[#8C97A8]';
 
+const SHOW_GENRE_FILTER = '10764|10767';
+const SHOW_HERO_COUNTRY_FILTER = 'CN|KR';
+const SHOW_COUNTRY_OPTIONS: ShowCountryOption[] = [
+  { value: 'CN', label: '\u4e2d\u56fd' },
+  { value: 'KR', label: '\u97e9\u56fd' },
+  { value: 'JP', label: '\u65e5\u672c' },
+  { value: 'US', label: '\u7f8e\u56fd' },
+  { value: 'GB', label: '\u82f1\u56fd' },
+  { value: 'TH', label: '\u6cf0\u56fd' },
+  { value: 'FR', label: '\u6cd5\u56fd' },
+  { value: 'DE', label: '\u5fb7\u56fd' },
+];
+
 function DoubanPageClient() {
   const searchParams = useSearchParams();
   const type = normalizeType(searchParams.get('type'));
   const media = type === 'movie' || type === 'custom' ? 'movie' : 'tv';
-  const hasTopHero = type === 'movie' || type === 'tv';
-  const isTmdbType = type === 'movie' || type === 'tv';
+  const hasTopHero = type === 'movie' || type === 'tv' || type === 'show';
+  const isTmdbType = type === 'movie' || type === 'tv' || type === 'show';
 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -189,7 +206,7 @@ function DoubanPageClient() {
   const showObserverRef = useRef<IntersectionObserver | null>(null);
   const showLoadingRef = useRef<HTMLDivElement | null>(null);
   const showDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const [showSelection, setShowSelection] = useState('show');
+  const [showCountries, setShowCountries] = useState<string[]>([]);
   const [showItems, setShowItems] = useState<DoubanItem[]>([]);
   const [showLoading, setShowLoading] = useState(false);
   const [showLoadingMore, setShowLoadingMore] = useState(false);
@@ -200,7 +217,7 @@ function DoubanPageClient() {
     setFilters(DEFAULT_FILTERS);
     setShowAdvancedFilters(false);
     if (type === 'show') {
-      setShowSelection('show');
+      setShowCountries([]);
     }
   }, [type]);
 
@@ -240,6 +257,15 @@ function DoubanPageClient() {
     () => (media === 'tv' ? TV_GENRE_OPTIONS : MOVIE_GENRE_OPTIONS),
     [media]
   );
+  const showCountryFilter = useMemo(() => {
+    if (!showCountries.length) return '';
+    const selected = new Set(
+      showCountries.map((code) => code.trim().toUpperCase()).filter(Boolean)
+    );
+    return SHOW_COUNTRY_OPTIONS.map((option) => option.value)
+      .filter((value) => selected.has(value))
+      .join('|');
+  }, [showCountries]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -302,7 +328,7 @@ function DoubanPageClient() {
         const data = (await response.json()) as DiscoverApiResponse;
 
         if (!response.ok || data.code !== 200) {
-          throw new Error(data.message || '获取 TMDB 数据失败');
+          throw new Error(data.message || '\u83b7\u53d6 TMDB \u6570\u636e\u5931\u8d25');
         }
 
         setItems((prev) => (append ? [...prev, ...data.list] : data.list));
@@ -354,7 +380,9 @@ function DoubanPageClient() {
         });
 
         if (data.code !== 200) {
-          throw new Error(data.message || '获取自定义分类失败');
+          throw new Error(
+            data.message || '\u83b7\u53d6\u81ea\u5b9a\u4e49\u5206\u7c7b\u5931\u8d25'
+          );
         }
 
         setCustomItems((prev) =>
@@ -383,20 +411,30 @@ function DoubanPageClient() {
           setShowLoading(true);
         }
 
-        const data: DoubanResult = await getDoubanCategories({
-          kind: 'tv',
-          category: 'show',
-          type: showSelection || 'show',
-          pageLimit: 25,
-          pageStart: page * 25,
+        const params = new URLSearchParams({
+          media: 'tv',
+          include_adult: 'false',
+          page: String(page + 1),
+          with_genres: SHOW_GENRE_FILTER,
         });
 
-        if (data.code !== 200) {
-          throw new Error(data.message || '获取综艺分类失败');
+        if (showCountryFilter) {
+          params.set('with_origin_country', showCountryFilter);
+        }
+
+        const response = await fetch(`/api/tmdb/discover?${params.toString()}`);
+        const data = (await response.json()) as DiscoverApiResponse;
+
+        if (!response.ok || data.code !== 200) {
+          throw new Error(
+            data.message || '\u83b7\u53d6 TMDB \u7efc\u827a\u6570\u636e\u5931\u8d25'
+          );
         }
 
         setShowItems((prev) => (append ? [...prev, ...data.list] : data.list));
-        setShowHasMore(data.list.length === 25);
+        const current = data.page || page + 1;
+        const total = data.total_pages || 1;
+        setShowHasMore(current < total);
       } catch {
         if (!append) {
           setShowItems([]);
@@ -407,7 +445,7 @@ function DoubanPageClient() {
         setShowLoadingMore(false);
       }
     },
-    [showSelection]
+    [showCountryFilter]
   );
 
   useEffect(() => {
@@ -522,7 +560,7 @@ function DoubanPageClient() {
     return () => {
       if (showDebounceRef.current) clearTimeout(showDebounceRef.current);
     };
-  }, [type, showSelection, loadShowPage]);
+  }, [type, showCountryFilter, loadShowPage]);
 
   useEffect(() => {
     if (type !== 'show') return;
@@ -589,14 +627,16 @@ function DoubanPageClient() {
     [customSecondarySelection]
   );
 
-  const handleShowSecondaryChange = useCallback(
-    (value: string) => {
-      if (value === showSelection) return;
-      setShowLoading(true);
-      setShowSelection(value);
-    },
-    [showSelection]
-  );
+  const toggleShowCountry = useCallback((countryCode: string) => {
+    setShowLoading(true);
+    setShowCountries((prev) => {
+      const exists = prev.includes(countryCode);
+      if (exists) {
+        return prev.filter((value) => value !== countryCode);
+      }
+      return [...prev, countryCode];
+    });
+  }, []);
 
   const activePath = useMemo(() => {
     const params = new URLSearchParams();
@@ -646,7 +686,13 @@ function DoubanPageClient() {
       >
         {hasTopHero ? (
           <div className='px-2 sm:px-0'>
-            <TmdbHeroBanner mediaFilter={media} />
+            <TmdbHeroBanner
+              mediaFilter={media}
+              withGenres={type === 'show' ? SHOW_GENRE_FILTER : ''}
+              withOriginCountry={
+                type === 'show' ? SHOW_HERO_COUNTRY_FILTER : ''
+              }
+            />
           </div>
         ) : null}
 
@@ -659,33 +705,65 @@ function DoubanPageClient() {
             </div>
 
             <div className='rounded-2xl border border-gray-200/60 bg-white/75 p-4 backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-900/50 sm:p-6'>
-              {type === 'custom' ? (
-                <>
-                  <div className='mb-4 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
-                    <Film className='h-4 w-4' />
-                    自定义分类
-                  </div>
-                  <DoubanCustomSelector
-                    customCategories={customCategories}
+	              {type === 'custom' ? (
+	                <>
+	                  <div className='mb-4 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+	                    <Film className='h-4 w-4' />
+	                    {'\u81ea\u5b9a\u4e49\u5206\u7c7b'}
+	                  </div>
+	                  <DoubanCustomSelector
+	                    customCategories={customCategories}
                     primarySelection={customPrimarySelection}
                     secondarySelection={customSecondarySelection}
-                    onPrimaryChange={handleCustomPrimaryChange}
-                    onSecondaryChange={handleCustomSecondaryChange}
-                  />
-                </>
-              ) : type === 'show' ? (
+	                    onPrimaryChange={handleCustomPrimaryChange}
+	                    onSecondaryChange={handleCustomSecondaryChange}
+	                  />
+	                </>
+	              ) : type === 'show' ? (
                 <>
-                  <div className='mb-4 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
-                    <Film className='h-4 w-4' />
-                    综艺分类
+                  <div className='mb-4 flex items-center justify-between'>
+                    <div className='inline-flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-200'>
+                      <ListFilter className='h-5 w-5' />
+                      <span>{'\u7b5b\u9009'}</span>
+                    </div>
+                    <button
+                      type='button'
+                      onClick={() => setShowCountries([])}
+                      disabled={showCountries.length === 0}
+                      className='inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-red-500 transition hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-400 dark:hover:text-red-300'
+                    >
+                      <RotateCcw className='h-3.5 w-3.5' />
+                      {'\u91cd\u7f6e'}
+                    </button>
                   </div>
-                  <DoubanSelector
-                    type='show'
-                    primarySelection=''
-                    secondarySelection={showSelection}
-                    onPrimaryChange={() => undefined}
-                    onSecondaryChange={handleShowSecondaryChange}
-                  />
+                  <div className='space-y-4'>
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4'>
+                      <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0 sm:pt-1'>
+                        <Languages className='h-4 w-4' />
+                        {'\u56fd\u5bb6'}
+                      </div>
+                      <div className='flex flex-wrap gap-2'>
+                        {SHOW_COUNTRY_OPTIONS.map((country) => {
+                          const active = showCountries.includes(country.value);
+                          return (
+                            <button
+                              key={country.value}
+                              type='button'
+                              aria-pressed={active}
+                              onClick={() => toggleShowCountry(country.value)}
+                              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                active
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/60 dark:bg-blue-900/20 dark:text-blue-300'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {country.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </>
               ) : (
                 <>
@@ -714,7 +792,7 @@ function DoubanPageClient() {
                       className='inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300'
                     >
                       <RotateCcw className='h-3.5 w-3.5' />
-                      重置
+                      {'\u91cd\u7f6e'}
                     </button>
                   </div>
 
@@ -722,7 +800,7 @@ function DoubanPageClient() {
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <CalendarRange className='h-4 w-4' />
-                        发行日期
+                        {'\u53d1\u884c\u65e5\u671f'}
                       </div>
                   <div className='w-full'>
                         <div className='mb-1 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300'>
@@ -784,7 +862,7 @@ function DoubanPageClient() {
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4'>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0 sm:pt-1'>
                         <Tags className='h-4 w-4' />
-                        类型
+                        {'\u7c7b\u578b'}
                       </div>
                       <div className='flex flex-wrap gap-2'>
                         {genreOptions.map((genre) => {
@@ -813,7 +891,7 @@ function DoubanPageClient() {
                     <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <Languages className='h-4 w-4' />
-                        语言
+                        {'\u8bed\u8a00'}
                       </div>
                       <select
                         value={filters.language}
@@ -839,7 +917,7 @@ function DoubanPageClient() {
                     <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <Star className='h-4 w-4' />
-                        用户评分
+                        {'\u7528\u6237\u8bc4\u5206'}
                       </div>
                   <div className='w-full'>
                         <div className='mb-1 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300'>
@@ -901,7 +979,7 @@ function DoubanPageClient() {
                     <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <UsersRound className='h-4 w-4' />
-                        最少人数投票
+                        {'\u6700\u5c11\u4eba\u6570\u6295\u7968'}
                       </div>
                       <input
                         type='number'
@@ -914,7 +992,7 @@ function DoubanPageClient() {
                             minVoteCount: e.target.value,
                           }))
                         }
-                        placeholder='如 500'
+                        placeholder={'\u5982 500'}
                         className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-base outline-none transition focus:border-gray-400 dark:border-gray-700 dark:bg-gray-800 sm:max-w-xs'
                       />
                     </div>
@@ -922,12 +1000,12 @@ function DoubanPageClient() {
                     <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${showAdvancedFilters ? '' : 'hidden'}`}>
                       <div className='flex items-center gap-1 text-base font-semibold text-gray-700 dark:text-gray-200 sm:w-40 sm:flex-shrink-0'>
                         <Clock3 className='h-4 w-4' />
-                        时长
+                        {'\u65f6\u957f'}
                       </div>
                   <div className='w-full'>
                         <div className='mb-1 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300'>
-                          <span>{runtimeMinValue} 分钟</span>
-                          <span>{runtimeMaxValue} 分钟</span>
+                          <span>{runtimeMinValue} {'\u5206\u949f'}</span>
+                          <span>{runtimeMaxValue} {'\u5206\u949f'}</span>
                         </div>
                         <div className='relative h-8'>
                           <div className='absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gray-200 dark:bg-gray-700' />
@@ -1019,7 +1097,7 @@ function DoubanPageClient() {
                               ? 'movie'
                               : ''
                             : type === 'show'
-                            ? ''
+                            ? 'tv'
                             : media
                         }
                       />
@@ -1057,7 +1135,7 @@ function DoubanPageClient() {
                   <div className='flex items-center gap-2'>
                     <div className='h-6 w-6 animate-spin rounded-full border-b-2 border-blue-500' />
                     <span className='text-gray-600 dark:text-gray-300'>
-                      加载中...
+                      {'\u52a0\u8f7d\u4e2d...'}
                     </span>
                   </div>
                 ) : null}
@@ -1075,7 +1153,7 @@ function DoubanPageClient() {
               ? showItems.length
               : items.length) > 0 ? (
               <div className='py-8 text-center text-gray-500 dark:text-gray-400'>
-                已加载全部内容
+                {'\u5df2\u52a0\u8f7d\u5168\u90e8\u5185\u5bb9'}
               </div>
             ) : null}
 
@@ -1090,7 +1168,7 @@ function DoubanPageClient() {
               ? showItems.length
               : items.length) === 0 ? (
               <div className='py-8 text-center text-gray-500 dark:text-gray-400'>
-                暂无相关内容
+                {'\u6682\u65e0\u76f8\u5173\u5185\u5bb9'}
               </div>
             ) : null}
           </div>

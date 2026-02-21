@@ -174,6 +174,8 @@ type HeroMediaFilter = 'all' | 'movie' | 'tv';
 
 interface TmdbHeroBannerProps {
   mediaFilter?: HeroMediaFilter;
+  withGenres?: string;
+  withOriginCountry?: string;
 }
 
 interface SeasonPickerState {
@@ -430,6 +432,8 @@ function matchesMediaFilter(
 
 export default function TmdbHeroBanner({
   mediaFilter = 'all',
+  withGenres = '',
+  withOriginCountry = '',
 }: TmdbHeroBannerProps) {
   const router = useRouter();
   const [items, setItems] = useState<TmdbHeroItem[]>([]);
@@ -635,18 +639,39 @@ export default function TmdbHeroBanner({
   const fetchDirectFromTmdb = useCallback(async (signal?: AbortSignal) => {
     if (!TMDB_CLIENT_API_KEY) return [];
 
+    const normalizedGenres = (withGenres || '').trim();
+    const normalizedOriginCountry = (withOriginCountry || '')
+      .trim()
+      .replace(/\s+/g, '')
+      .toUpperCase();
+    const shouldUseDiscover = Boolean(
+      normalizedGenres || normalizedOriginCountry
+    );
+    const discoverMediaType: 'movie' | 'tv' =
+      mediaFilter === 'movie' ? 'movie' : 'tv';
     const params = new URLSearchParams({
       api_key: TMDB_CLIENT_API_KEY,
       language: 'zh-CN',
       page: '1',
     });
-
-    const response = await fetch(
-      `${TMDB_API_BASE_URL}/trending/all/day?${params.toString()}`,
-      {
-        signal,
+    if (shouldUseDiscover) {
+      params.set('sort_by', 'popularity.desc');
+      params.set('include_adult', 'false');
+      if (normalizedGenres) {
+        params.set('with_genres', normalizedGenres);
       }
-    );
+      if (normalizedOriginCountry) {
+        params.set('with_origin_country', normalizedOriginCountry);
+      }
+    }
+
+    const endpoint = shouldUseDiscover
+      ? `${TMDB_API_BASE_URL}/discover/${discoverMediaType}`
+      : `${TMDB_API_BASE_URL}/trending/all/day`;
+
+    const response = await fetch(`${endpoint}?${params.toString()}`, {
+      signal,
+    });
 
     if (!response.ok) {
       return [];
@@ -654,7 +679,11 @@ export default function TmdbHeroBanner({
 
     const data = (await response.json()) as TmdbRawResponse;
     const baseItems = (data.results || [])
-      .map(mapRawItemToHero)
+      .map((item) =>
+        shouldUseDiscover
+          ? mapRawItemToHero({ ...item, media_type: discoverMediaType })
+          : mapRawItemToHero(item)
+      )
       .filter((item): item is TmdbHeroItem => item !== null)
       .filter((item) => matchesMediaFilter(item.mediaType, mediaFilter))
       .slice(0, HERO_ITEM_LIMIT);
@@ -676,7 +705,13 @@ export default function TmdbHeroBanner({
     );
     const logoOnlyItems = itemsWithLogo.filter((item) => Boolean(item.logo));
     return logoOnlyItems.length > 0 ? logoOnlyItems : itemsWithLogo;
-  }, [fetchHeroMetaForItem, fetchLogoForItem, mediaFilter]);
+  }, [
+    fetchHeroMetaForItem,
+    fetchLogoForItem,
+    mediaFilter,
+    withGenres,
+    withOriginCountry,
+  ]);
 
   const safeImageUrl = useCallback((url: string): string => {
     try {
@@ -889,6 +924,17 @@ export default function TmdbHeroBanner({
       if (mediaFilter !== 'all') {
         params.set('mediaType', mediaFilter);
       }
+      const normalizedGenres = (withGenres || '').trim();
+      if (normalizedGenres) {
+        params.set('with_genres', normalizedGenres);
+      }
+      const normalizedOriginCountry = (withOriginCountry || '')
+        .trim()
+        .replace(/\s+/g, '')
+        .toUpperCase();
+      if (normalizedOriginCountry) {
+        params.set('with_origin_country', normalizedOriginCountry);
+      }
       const response = await fetch(
         `/api/tmdb/hero${params.toString() ? `?${params.toString()}` : ''}`,
         {
@@ -940,7 +986,7 @@ export default function TmdbHeroBanner({
     } finally {
       setLoading(false);
     }
-  }, [fetchDirectFromTmdb, mediaFilter]);
+  }, [fetchDirectFromTmdb, mediaFilter, withGenres, withOriginCountry]);
 
   useEffect(() => {
     const controller = new AbortController();

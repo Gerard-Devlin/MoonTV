@@ -91,14 +91,22 @@ function toScore(value?: number): string {
   return value.toFixed(1);
 }
 
-function mapHeroItem(item: TmdbTrendingItem): TmdbHeroItem | null {
-  const mediaType: TmdbMediaType =
-    item.media_type === 'tv' ? 'tv' : item.media_type === 'movie' ? 'movie' : 'movie';
+function mapHeroItem(
+  item: TmdbTrendingItem,
+  fallbackMediaType?: TmdbMediaType
+): TmdbHeroItem | null {
+  const mediaType: TmdbMediaType | null =
+    fallbackMediaType ||
+    (item.media_type === 'tv'
+      ? 'tv'
+      : item.media_type === 'movie'
+        ? 'movie'
+        : null);
   const title = (item.title || item.name || '').trim();
   const backdropPath = item.backdrop_path || '';
   const posterPath = item.poster_path || '';
 
-  if (!title || !backdropPath || !posterPath) return null;
+  if (!mediaType || !title || !backdropPath || !posterPath) return null;
 
   return {
     id: item.id,
@@ -220,6 +228,17 @@ function normalizeMediaFilter(value: string | null): HeroMediaFilter {
   return 'all';
 }
 
+function normalizeWithGenres(value: string | null): string {
+  return (value || '').trim().replace(/\s+/g, '');
+}
+
+function normalizeWithOriginCountry(value: string | null): string {
+  return (value || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .toUpperCase();
+}
+
 function buildCacheHeaders(): HeadersInit {
   return {
     'Cache-Control': `public, max-age=${HERO_CACHE_SECONDS}, s-maxage=${HERO_CACHE_SECONDS}, stale-while-revalidate=60`,
@@ -254,7 +273,11 @@ function writeHeroCache(key: string, results: TmdbHeroItem[]): void {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mediaFilter = normalizeMediaFilter(searchParams.get('mediaType'));
-  const cacheKey = `hero:${mediaFilter}`;
+  const withGenres = normalizeWithGenres(searchParams.get('with_genres'));
+  const withOriginCountry = normalizeWithOriginCountry(
+    searchParams.get('with_origin_country')
+  );
+  const cacheKey = `hero:${mediaFilter}:${withGenres || 'none'}:${withOriginCountry || 'none'}`;
 
   const apiKey =
     process.env.TMDB_API_KEY ||
@@ -278,18 +301,32 @@ export async function GET(request: Request) {
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
+    const shouldUseDiscover = Boolean(withGenres || withOriginCountry);
+    const discoverMediaType: TmdbMediaType =
+      mediaFilter === 'movie' ? 'movie' : 'tv';
     const params = new URLSearchParams({
       api_key: apiKey,
       language: 'zh-CN',
       page: '1',
     });
-
-    const response = await fetch(
-      `${TMDB_API_BASE_URL}/trending/all/day?${params.toString()}`,
-      {
-        signal: controller.signal,
+    if (shouldUseDiscover) {
+      params.set('sort_by', 'popularity.desc');
+      params.set('include_adult', 'false');
+      if (withGenres) {
+        params.set('with_genres', withGenres);
       }
-    );
+      if (withOriginCountry) {
+        params.set('with_origin_country', withOriginCountry);
+      }
+    }
+
+    const endpoint = shouldUseDiscover
+      ? `${TMDB_API_BASE_URL}/discover/${discoverMediaType}`
+      : `${TMDB_API_BASE_URL}/trending/all/day`;
+
+    const response = await fetch(`${endpoint}?${params.toString()}`, {
+      signal: controller.signal,
+    });
 
     if (!response.ok) {
       return NextResponse.json({ results: [] }, { status: 200 });
@@ -297,13 +334,21 @@ export async function GET(request: Request) {
 
     const data = (await response.json()) as TmdbTrendingResponse;
     const baseResults = (data.results || [])
-      .filter((item) => item.media_type === 'movie' || item.media_type === 'tv')
-      .filter(
-        (item) =>
-          mediaFilter === 'all' ||
-          item.media_type === mediaFilter
+      .filter((item) =>
+        shouldUseDiscover
+          ? true
+          : item.media_type === 'movie' || item.media_type === 'tv'
       )
-      .map(mapHeroItem)
+      .filter((item) =>
+        shouldUseDiscover
+          ? true
+          : mediaFilter === 'all' || item.media_type === mediaFilter
+      )
+      .map((item) =>
+        shouldUseDiscover
+          ? mapHeroItem(item, discoverMediaType)
+          : mapHeroItem(item)
+      )
       .filter((item): item is TmdbHeroItem => Boolean(item))
       .slice(0, 8);
 

@@ -131,6 +131,9 @@ function buildDiscoverParams(
   });
 
   const withGenres = normalizeText(searchParams.get('with_genres') || '');
+  const withOriginCountry = normalizeText(
+    searchParams.get('with_origin_country') || ''
+  );
   const language = normalizeText(searchParams.get('language') || '');
   const releaseFrom = normalizeText(searchParams.get('release_from') || '');
   const releaseTo = normalizeText(searchParams.get('release_to') || '');
@@ -141,6 +144,7 @@ function buildDiscoverParams(
   const runtimeTo = parsePositiveNumber(searchParams.get('runtime_lte'));
 
   if (withGenres) params.set('with_genres', withGenres);
+  if (withOriginCountry) params.set('with_origin_country', withOriginCountry);
   if (keywordIds) params.set('with_keywords', keywordIds);
   if (language) params.set('with_original_language', language);
   if (minRating) params.set('vote_average.gte', minRating);
